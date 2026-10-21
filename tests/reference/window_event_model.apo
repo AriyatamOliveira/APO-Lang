@@ -1,0 +1,52 @@
+# Test-only event/window substitute: no macOS window is opened.
+fn window_open(width: int, height: int, title: string): buffer
+  return alloc(4096i)
+end
+fn window_poll(w: buffer): bool
+  store64(w, 0i, load64(w, 0i) + 1i)
+  sleep(0.4)
+  return load64(w, 0i) <= 18i
+end
+fn key_pressed(w: buffer, key: int): bool
+  let frame = load64(w, 0i)
+  if key == 49i then
+    return frame == 3i or frame == 8i
+  end
+  if key == 15i then
+    return frame == 10i
+  end
+  if key == 123i then
+    return frame == 12i
+  end
+  if key == 124i then
+    return frame == 13i
+  end
+  return false
+end
+fn mouse_dx(w: buffer): float
+  return 2.0f
+end
+fn mouse_dy(w: buffer): float
+  return -1.0f
+end
+fn mouse_down(w: buffer): bool
+  return load64(w, 0i) == 2i
+end
+fn mouse_scroll(w: buffer): float
+  if load64(w, 0i) == 9i then
+    return 1.0f
+  end
+  return 0.0f
+end
+fn window_drawable(w: buffer): bool
+  return load64(w, 0i) != 5i and load64(w, 0i) != 6i
+end
+fn window_present(w: buffer, pixels: buffer, width: int, height: int, at: int): void
+  assert(int(len(pixels)) >= at + width * height * 4i)
+  store64(w, 8i, load64(w, 8i) + 1i)
+end
+fn window_close(w: buffer): void
+  assert(load64(w, 8i) == 14i)
+  print: "Headless event model: 14 presentations; pause/resume, hide/restore, camera, dimension changes", \nl
+  free(w)
+end

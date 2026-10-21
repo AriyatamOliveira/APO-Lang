@@ -1,0 +1,8 @@
+fn f(a: int, b: int,): int
+  return a + b
+end
+println: f(
+  1i,
+  f(2i, 3i,),
+)
+f(1i,2i,)

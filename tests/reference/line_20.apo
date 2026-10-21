@@ -1,0 +1,73 @@
+use "../../lib/render3d.apo"
+fn reference_line(image: buffer, vertices: buffer, u: int, v: int, color: int, scratch: buffer): void
+  r3_check(image)
+  assert(u >= 0i and v >= 0i and u < int(len(vertices)) / 48i and v < int(len(vertices)) / 48i)
+  a = u * 48i
+  b = v * 48i
+  x0 = loadfloat(vertices, a)
+  y0 = loadfloat(vertices, a + 8i)
+  z0 = loadfloat(vertices, a + 16i)
+  x1 = loadfloat(vertices, b)
+  y1 = loadfloat(vertices, b + 8i)
+  z1 = loadfloat(vertices, b + 16i)
+  if z0 < 0.1f and z1 < 0.1f then
+    return
+  end
+  if z0 < 0.1f then
+    t = (0.1f - z0) / (z1 - z0)
+    x0 += (x1 - x0) * t
+    y0 += (y1 - y0) * t
+    z0 = 0.1f
+  end
+  if z1 < 0.1f then
+    t = (0.1f - z1) / (z0 - z1)
+    x1 += (x0 - x1) * t
+    y1 += (y0 - y1) * t
+    z1 = 0.1f
+  end
+  width = load64(image, 0i)
+  height = load64(image, 8i)
+  focal = float(width) * loadfloat(image, 40i)
+  za = 1.0f / z0
+  zb = 1.0f / z1
+  ax = float(width) / 2.0f + x0 * focal * za
+  ay = float(height) / 2.0f - y0 * focal * za
+  bx = float(width) / 2.0f + x1 * focal * zb
+  by = float(height) / 2.0f - y1 * focal * zb
+  dx = bx - ax
+  dy = by - ay
+  storefloat(scratch, 0i, 0.0f)
+  storefloat(scratch, 8i, 1.0f)
+  if not r3_clip(scratch, -dx, ax) or not r3_clip(scratch, dx, float(width - 1i) - ax) or not r3_clip(scratch, -dy, ay) or not r3_clip(scratch, dy, float(height - 1i) - ay) then
+    return
+  end
+  low = loadfloat(scratch, 0i)
+  high = loadfloat(scratch, 8i)
+  bx = ax + high * dx
+  by = ay + high * dy
+  ax += low * dx
+  ay += low * dy
+  z_end = za + (zb - za) * high
+  za += (zb - za) * low
+  steps = trunc(ceil(r3_max(abs(bx - ax), abs(by - ay))))
+  if steps < 1i then
+    steps = 1i
+  end
+  assert(steps <= width + height + 2i)
+  i = 0i
+  zoff = load64(image, 16i)
+  while i <= steps do
+    t = float(i) / float(steps)
+    x = trunc(floor(ax + (bx - ax) * t + 0.5f))
+    y = trunc(floor(ay + (by - ay) * t + 0.5f))
+    if x >= 0i and y >= 0i and x < width and y < height then
+      inv = za + (z_end - za) * t
+      index = y * width + x
+      if inv >= loadfloat(image, zoff + index * 8i) then
+        storefloat(image, zoff + index * 8i, inv)
+        store32(image, 64i + index * 4i, color)
+      end
+    end
+    i += 1i
+  end
+end

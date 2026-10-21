@@ -1,0 +1,3 @@
+unsafe
+  ccall(pointer(0i))
+end

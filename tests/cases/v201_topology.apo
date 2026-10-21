@@ -1,0 +1,38 @@
+use "../../lib/hypercube.apo"
+let n = 1i
+let checked = 0i
+while n <= 12i do
+  let e = hc_edges(n)
+  let count = shl(1i, n)
+  let degrees = alloc(count * 8i)
+  let seen = alloc(count * n)
+  let at = 0i
+  while at < int(len(e)) do
+    let u = load64(e, at)
+    let v = load64(e, at + 8i)
+    assert(u >= 0i and u < v and v < count)
+    let bit = bxor(u, v)
+    assert(bit != 0i and band(bit, bit - 1i) == 0i)
+    let d = 0i
+    while shr(bit, d) != 1i do
+      d += 1i
+    end
+    assert(seen[u * n + d] == 0)
+    seen[u * n + d] = 1
+    store64(degrees, u * 8i, load64(degrees, u * 8i) + 1i)
+    store64(degrees, v * 8i, load64(degrees, v * 8i) + 1i)
+    at += 16i
+    checked += 1i
+  end
+  assert(at / 16i == n * count / 2i)
+  let i = 0i
+  while i < count do
+    assert(load64(degrees, i * 8i) == n)
+    i += 1i
+  end
+  free(seen)
+  free(degrees)
+  free(e)
+  n += 1i
+end
+print: checked, " edges validated", \nl

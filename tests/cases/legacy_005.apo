@@ -1,0 +1,4 @@
+fn mix(a, b, c)
+ return a*100 + b*10 + c
+end
+print mix(1,2,3), \nl

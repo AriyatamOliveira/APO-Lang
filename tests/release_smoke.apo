@@ -1,0 +1,9 @@
+assert(0.1+0.2==0.3)
+assert(float32_bits(1.5f)==0x3fc00000)
+assert(float32_from_bits(0x3fc00000)==1.5f)
+let b=alloc(16i)
+atomic_store(b,0i,40i)
+assert(atomic_add(b,0i,2i)==40i)
+assert(atomic_load(b,0i)==42i)
+free(b)
+println "APO 2.1.5 native smoke passed"

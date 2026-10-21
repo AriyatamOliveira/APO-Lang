@@ -1,0 +1,17 @@
+let a = 4095i
+assert(a + 1i == 4096i)
+assert(a - 4095i == 0i)
+assert(a + 0i == a)
+assert(a >= 4095i)
+assert(a <= 4095i)
+assert(a != 1i)
+assert(a > 2i)
+assert(a < 4096i)
+let n = 0.000001
+assert(n + 0.000002 == 0.000003)
+assert(n - 0.000001 == 0)
+assert(n >= 0.000001)
+let yes = true
+assert(yes == true)
+assert(yes != false)
+println: "immediates"

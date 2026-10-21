@@ -1,0 +1,5 @@
+b=alloc(4)
+a=b
+free(b)
+c=alloc(4)
+print a[0]

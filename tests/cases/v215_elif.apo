@@ -1,0 +1,27 @@
+fn label(x: int): int
+  if x == 0i then
+    return 11i
+  elif x == 1i then
+    return 22i
+  elif x == 2i then
+    if true then
+      return 33i
+    else
+      return 44i
+    end
+  else
+    return 55i
+  end
+end
+for x in 0i 1i 2i 3i
+  println: label(x)
+end
+let hits = 0i
+if false then
+  hits += 10i
+elif true then
+  hits += 1i
+elif true then
+  hits += 100i
+end
+println: hits

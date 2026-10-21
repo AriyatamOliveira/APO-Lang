@@ -1,0 +1,52 @@
+# Native C/Objective-C ABI helpers. Imports are resolved by the macOS dynamic loader.
+# Library handles remain open for the lifetime of the process.
+fn native_null(): pointer
+  unsafe
+    return pointer(0i)
+  end
+end
+fn native_text(text: string): buffer
+  assert(len(text) < 1048576)
+  b = alloc(int(len(text)) + 1i)
+  i = 0i
+  while i < int(len(text)) do
+    assert(byte_at(text, i) != 0i)
+    i += 1i
+  end
+  copy(b, 0i, text, 0i, len(text))
+  return b
+end
+fn native_library(path: string): pointer
+  b = native_text(path)
+  unsafe
+    result = dlopen(address(b), 2i) # RTLD_NOW
+    free(b)
+    if result = native_null() then
+      print: "APO could not load native library: ", path, \nl
+      exit 70i
+    end
+    return result
+  end
+end
+fn native_symbol(library: pointer, name: string): pointer
+  b = native_text(name)
+  unsafe
+    result = dlsym(library, address(b))
+    free(b)
+    if result = native_null() then
+      print: "APO could not resolve native symbol: ", name, \nl
+      exit 70i
+    end
+    return result
+  end
+end
+fn native_get(b: buffer, at: int): pointer
+  unsafe
+    return pointer(load64(b, at))
+  end
+end
+fn native_put(b: buffer, at: int, p: pointer): void
+  unsafe
+    store64(b, at, address_int(p))
+  end
+end

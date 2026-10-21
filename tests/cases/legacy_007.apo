@@ -1,0 +1,4 @@
+fn one(): int
+ return 1i
+end
+print one()+one()*one(), \nl

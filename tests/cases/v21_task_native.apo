@@ -1,0 +1,5 @@
+task fn bad(data: buffer,begin: int,finish: int): void
+  unsafe
+    ccall(pointer(1i))
+  end
+end

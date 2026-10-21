@@ -1,0 +1,5 @@
+use hypercube_app
+
+# 30 warm-up frames, then 360 measured presentations.
+# ./apo run benchmarks/gpu.apo -- 8 max
+hypercube_app(true)

@@ -1,0 +1,7 @@
+# Explicit conversion to/from four-byte GPU-compatible floating-point storage.
+fn storef32(data: buffer, byte_offset: int, value: float): void
+  store32(data, byte_offset, float32_bits(value))
+end
+fn loadf32(data: buffer, byte_offset: int): float
+  return float32_from_bits(int(load32(data, byte_offset)))
+end

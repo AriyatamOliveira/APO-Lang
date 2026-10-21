@@ -1,0 +1,7 @@
+fn make(): buffer
+return alloc(2)
+end
+b=make()
+b[0]=66
+write_bytes(b,0,1)
+free(b)

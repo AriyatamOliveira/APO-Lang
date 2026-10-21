@@ -1,0 +1,2 @@
+assert(true)
+print false and (1/0 = 0), " ", true or (1/0=0)

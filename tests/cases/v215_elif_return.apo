@@ -1,0 +1,7 @@
+fn f(x: int): int
+if x == 0i then
+return 1i
+elif x == 1i then
+return 2i
+end
+end

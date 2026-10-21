@@ -1,0 +1,4 @@
+unsafe
+x=1i
+print asm32(x)
+end

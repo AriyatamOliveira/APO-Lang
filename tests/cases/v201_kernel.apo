@@ -1,0 +1,9 @@
+use "../../lib/render3d.apo"
+b = r3_canvas(32i, 32i)
+r3_clear(b, 0xff000000)
+_raster_line(b, 1.0f, 1.0f, 30.0f, 30.0f, 1.0f, 1.0f, 29i, 0xffffffff)
+assert(load32(b, 64i + (1i * 32i + 1i) * 4i) == 4294967295)
+assert(load32(b, 64i + (30i * 32i + 30i) * 4i) == 4294967295)
+assert(load32(b, 64i + (1i * 32i + 2i) * 4i) == 4278190080)
+free(b)
+print: "Native DDA endpoints passed", \nl

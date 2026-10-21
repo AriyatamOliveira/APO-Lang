@@ -1,0 +1,7 @@
+fn fact(n: int): int
+ if n <= 1i then
+ return 1i
+ end
+ return n*fact(n-1i)
+end
+print fact(10i), \nl

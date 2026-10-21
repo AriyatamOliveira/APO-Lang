@@ -1,0 +1,131 @@
+use process
+use filesystem
+
+# Initial source bootstrap: see README.md. Later: ./apo run build.apo
+# Run from the extracted release root. Nothing is fetched from the network.
+fn build_fail(phase: string,folder: string): void
+  fs_remove(".apo-build-lock",true)
+  println "Build failed: ",phase
+  println "Existing apo was left unchanged. Diagnostic stages remain in ",folder
+  exit 1i
+end
+fn build_compile(compiler: string,source: string,output: string): int
+  request=process_new(compiler)
+  process_arg(request,"build")
+  process_arg(request,source)
+  process_arg(request,"-o")
+  process_arg(request,output)
+  process_arg(request,"--lib-dir")
+  process_arg(request,"lib")
+  outlog=fs_join(output,".stdout")
+  errlog=fs_join(output,".stderr")
+  status=process_capture(request,outlog,errlog)
+  free(request)
+  if status!=0i then
+    log=fs_read(outlog)
+    print fs_text(log)
+    free(log)
+    log=fs_read(errlog)
+    print fs_text(log)
+    free(log)
+  end
+  return status
+end
+fn build_verify(path: string): int
+  request=process_new("/usr/bin/codesign")
+  process_arg(request,"--verify")
+  process_arg(request,"--strict")
+  process_arg(request,path)
+  status=process_run(request)
+  free(request)
+  return status
+end
+fn build_main(): void
+  if not fs_exists("compiler.apo") or not fs_exists("lib/process.apo") then
+    println "Run build.apo from the extracted APO release directory."
+    exit 66i
+  end
+  compiler="./.apo-bootstrap"
+  if fs_exists("./apo") then
+    compiler="./apo"
+  end
+  if argc()>1i then
+    compiler=arg(1i)
+  end
+  if not fs_exists(compiler) then
+    println "No source bootstrap found. Follow the two bootstrap commands in README.md."
+    exit 66i
+  end
+  # Reject directory/symlink output instead of replacing an unexpected object.
+  system=native_library("/usr/lib/libSystem.B.dylib")
+  state=alloc(512i)
+  target=native_text("apo")
+  unsafe
+    status=ccall(native_symbol(system,"lstat"),address(target),address(state))
+    if status==0i then
+      mode=band(int(load16(state,4i)),61440i)
+      if mode!=32768i then
+        println "Destination apo is not a regular file; refusing to replace it."
+        exit 64i
+      end
+    end
+  end
+  free(target)
+  free(state)
+  if fs_mkdir(".apo-build-lock")!=0i then
+    println "Another build or an old build lock exists: .apo-build-lock"
+    println "Do not remove it while a build is running."
+    exit 73i
+  end
+  folder=""
+  unsafe
+    folder=fs_join(".apo-build-",fs_integer(syscall(20i,0i,0i,0i,0i,0i,0i)))
+  end
+  if fs_mkdir(folder)!=0i then
+    build_fail("cannot create private stage directory",folder)
+  end
+  stage1=fs_join(folder,"/stage1")
+  stage2=fs_join(folder,"/stage2")
+  stage3=fs_join(folder,"/stage3")
+  smoke=fs_join(folder,"/smoke")
+  println "[1/5] Compiling APO source"
+  if build_compile(compiler,"compiler.apo",stage1)!=0i then
+    build_fail("first stage",folder)
+  end
+  println "[2/5] First self-build"
+  if build_compile(stage1,"compiler.apo",stage2)!=0i then
+    build_fail("first self-build",folder)
+  end
+  println "[3/5] Second self-build"
+  if build_compile(stage2,"compiler.apo",stage3)!=0i then
+    build_fail("second self-build",folder)
+  end
+  println "[4/5] Checking reproducibility and signatures"
+  if not fs_equal(stage2,stage3) or build_verify(stage3)!=0i then
+    build_fail("self-build comparison or signature verification",folder)
+  end
+  println "[5/5] Native smoke test and installation"
+  if build_compile(stage3,"tests/release_smoke.apo",smoke)!=0i or build_verify(smoke)!=0i then
+    build_fail("smoke compilation",folder)
+  end
+  request=process_new(smoke)
+  result=process_run(request)
+  free(request)
+  if result!=0i then
+    build_fail("smoke execution",folder)
+  end
+  if fs_rename(stage3,"apo")!=0i then
+    build_fail("atomic installation",folder)
+  end
+  fs_remove(stage1,false)
+  fs_remove(stage2,false)
+  fs_remove(smoke,false)
+  for stage in stage1 stage2 stage3 smoke
+    fs_remove(fs_join(stage,".stdout"),false)
+    fs_remove(fs_join(stage,".stderr"),false)
+  end
+  fs_remove(folder,true)
+  fs_remove(".apo-build-lock",true)
+  println "Built ./apo. Run ./apo run hypercube.apo -- 8 max"
+end
+build_main()

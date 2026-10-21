@@ -1,0 +1,142 @@
+use "render3d.apo"
+# APO-written PNG encoder: RGBA8, filter 0, stored DEFLATE, CRC32 and Adler32.
+fn write_fd_bytes(fd: int, data: buffer, offset_bytes: int, count: int): void
+  assert(offset_bytes >= 0i and count >= 0i and offset_bytes + count <= int(len(data)))
+  unsafe
+    done = 0i
+    while done < count do
+      result = syscall(4i, fd, offset(address(data), offset_bytes + done), count - done, 0i, 0i, 0i)
+      if result != -4i then
+        assert(result > 0i)
+        done = done + result
+      end
+    end
+  end
+end
+# PNG encoder written in APO: RGB8, filter 0, stored DEFLATE blocks, CRC-32, Adler-32.
+fn png_be32(b: buffer, p: int, value: int): void
+  b[p] = band(shr(value, 24i), 255i)
+  b[p + 1i] = band(shr(value, 16i), 255i)
+  b[p + 2i] = band(shr(value, 8i), 255i)
+  b[p + 3i] = band(value, 255i)
+end
+fn png_crc_table(): buffer
+  table = alloc(256 * 8)
+  n = 0i
+  while n < 256i do
+    c = n
+    k = 0i
+    while k < 8i do
+      if band(c, 1i) = 1i then
+        c = bxor(shr(c, 1i), 0xedb88320)
+      else
+        c = shr(c, 1i)
+      end
+      k = k + 1i
+    end
+    store64(table, n * 8i, c)
+    n = n + 1i
+  end
+  return table
+end
+fn png_crc(b: buffer, start: int, count: int, table: buffer): int
+  c = 0xffffffff
+  i = 0i
+  while i < count do
+    index = band(bxor(c, int(b[start + i])), 255i)
+    c = bxor(load64(table, index * 8i), shr(c, 8i))
+    i = i + 1i
+  end
+  return bxor(c, 0xffffffff)
+end
+fn r3_encode_png(image: buffer): buffer
+  width = load64(image, 0)
+  height = load64(image, 8)
+  r3_check(image)
+  row_bytes = width * 4i + 1i
+  raw_size = row_bytes * height
+  pixels = alloc(raw_size)
+  y = 0i
+  while y < height do
+    pixels[y * row_bytes] = 0 # no PNG predictor filter
+    copy(pixels, y * row_bytes + 1i, image, 64i + y * width * 4i, width * 4i)
+    y = y + 1i
+  end
+  blocks = (raw_size + 65534i) / 65535i
+  compressed_size = 6i + raw_size + blocks * 5i
+  b = alloc(57i + compressed_size)
+  b[0] = 137
+  copy(b, 1, "PNG\r\n", 0, 5)
+  b[6] = 26
+  b[7] = 10
+  png_be32(b, 8i, 13i)
+  copy(b, 12, "IHDR", 0, 4)
+  png_be32(b, 16i, width)
+  png_be32(b, 20i, height)
+  b[24] = 8 # bits per channel
+  b[25] = 6 # RGBA
+  table = png_crc_table()
+  png_be32(b, 29i, png_crc(b, 12i, 17i, table))
+  png_be32(b, 33i, compressed_size)
+  copy(b, 37, "IDAT", 0, 4)
+  b[41] = 120 # zlib CMF: DEFLATE with 32 KiB window
+  b[42] = 1   # FLG: no dictionary, valid modulo-31 header check
+  pos = 43i
+  consumed = 0i
+  while consumed < raw_size do
+    count = raw_size - consumed
+    if count > 65535i then
+      count = 65535i
+    end
+    last = 0i
+    if consumed + count = raw_size then
+      last = 1i
+    end
+    b[pos] = last # BFINAL, BTYPE=00, aligned to the following byte
+    store16(b, pos + 1i, count)
+    store16(b, pos + 3i, bxor(count, 65535i))
+    copy(b, pos + 5i, pixels, consumed, count)
+    pos = pos + 5i + count
+    consumed = consumed + count
+  end
+  a = 1i
+  sum = 0i
+  i = 0i
+  while i < raw_size do
+    a = (a + int(pixels[i])) % 65521i
+    sum = (sum + a) % 65521i
+    i = i + 1i
+  end
+  png_be32(b, pos, shl(sum, 16i) + a)
+  pos = pos + 4i
+  assert(pos = 41i + compressed_size)
+  png_be32(b, pos, png_crc(b, 37i, 4i + compressed_size, table))
+  pos = pos + 4i
+  png_be32(b, pos, 0i)
+  copy(b, pos + 4i, "IEND", 0, 4)
+  png_be32(b, pos + 8i, png_crc(b, pos + 4i, 4i, table))
+  assert(pos + 12i = int(len(b)))
+  free(table)
+  free(pixels)
+  return b
+end
+fn r3_write_png(image: buffer, path: string): void
+  assert(len(path) > 4 and slice(path, int(len(path)) - 4i, 4) = ".png")
+  i = 0i
+  while i < int(len(path)) do
+    assert(byte_at(path, i) != 0i)
+    i = i + 1i
+  end
+  data = r3_encode_png(image)
+  name = alloc(int(len(path)) + 1i)
+  copy(name, 0, path, 0, len(path))
+  unsafe
+    fd = syscall(5i, address(name), 1537i, 420i, 0i, 0i, 0i)
+    assert(fd >= 0i)
+    write_fd_bytes(fd, data, 0i, int(len(data)))
+    assert(syscall(6i, fd, 0i, 0i, 0i, 0i, 0i) = 0i)
+  end
+  free(name)
+  free(data)
+end
+

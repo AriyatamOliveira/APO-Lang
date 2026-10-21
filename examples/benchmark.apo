@@ -1,0 +1,28 @@
+use "../lib/hypercube.apo"
+let n = 8i
+if argc() > 1i then
+  n = hc_dimension(arg(1i))
+end
+let image = r3_canvas(440i, 360i)
+let v = alloc(4096i * 48i)
+let m = alloc(1152i)
+let t = alloc(96i)
+let s = alloc(16i)
+let edges = hc_edges(n)
+r3_camera(image, 4.5f, 0.75f)
+let start = clock()
+let frame = 0i
+while frame < 8i do
+  r3_clear(image, r3_rgb(13i, 17i, 23i))
+  hc_vertices(image, v, m, t, n, 6.0f + float(frame) * 0.05f, 0.4f, 0.6f)
+  hc_draw_edges(image, v, n, edges, s)
+  frame += 1i
+end
+let elapsed = clock() - start
+print: "8 CPU-rendered frames in ", elapsed, " s; headless throughput ~ ", float(frame) / float(elapsed), " FPS", \nl
+free(edges)
+free(s)
+free(t)
+free(m)
+free(v)
+free(image)

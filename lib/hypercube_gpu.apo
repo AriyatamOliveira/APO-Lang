@@ -1,0 +1,121 @@
+use metal
+use hypercube
+use hypercube_shader
+
+fn hypercube_gpu_init(g: buffer,w: buffer): void
+  library=metal_library(g,w,hypercube_shader())
+  native_put(g,32i,library)
+  native_put(g,40i,metal_compute(g,w,library,"hc_project"))
+  native_put(g,48i,metal_pipeline(g,w,library,"hc_edge","hc_edge_fragment"))
+  native_put(g,56i,metal_pipeline(g,w,library,"hc_dot","hc_dot_fragment"))
+end
+fn hypercube_uniforms(g: buffer,matrix: buffer,params: buffer,dimension: int,time: float,pitch: float,yaw: float,zoom: float): void
+  metal_check(g)
+  assert(len(params)==640 and len(matrix)>=1152)
+  assert(dimension>=1i and dimension<=12i)
+  assert(zoom>0.0f and zoom<=12.0f)
+  hc_matrix(matrix,dimension,time)
+  i=0i
+  while i<dimension*dimension do
+    storef32(params,i*4i,loadfloat(matrix,i*8i))
+    i+=1i
+  end
+  store32(params,576i,dimension)
+  store32(params,580i,load64(g,72i))
+  store32(params,584i,load64(g,80i))
+  storef32(params,592i,r3_cos(pitch))
+  storef32(params,596i,r3_sin(pitch))
+  storef32(params,600i,r3_cos(yaw))
+  storef32(params,604i,r3_sin(yaw))
+  storef32(params,608i,4.5f)
+  storef32(params,612i,zoom)
+  storef32(params,616i,0.35f/sqrt(float(dimension)/4.0f))
+  storef32(params,620i,1.15f)
+  storef32(params,624i,4.0f)
+  storef32(params,628i,0.0f)
+  storef32(params,632i,0.1f)
+  storef32(params,636i,100.0f)
+end
+# Return false when no drawable is available; do not fake a presentation count.
+fn hypercube_gpu_draw(g: buffer,w: buffer,params: buffer): bool
+  metal_check(g)
+  gui_check(w)
+  assert(len(params)==640)
+  n=int(load32(params,576i))
+  assert(n>=1i and n<=12i)
+  slot=load64(g,112i)%3i
+  metal_wait_slot(g,w,slot)
+  uniform=native_get(g,256i+slot*32i)
+  points=native_get(g,264i+slot*32i)
+  unsafe
+    msg=native_get(w,160i)
+    ww=window_width(w)
+    wh=window_height(w)
+    if ww!=load64(g,184i) or wh!=load64(g,192i) then
+      ccallv(msg,native_get(g,24i),m_sel(g,74i),0.0f,0.0f,float(ww),float(wh))
+      store64(g,184i,ww)
+      store64(g,192i,wh)
+    end
+    ccallp(native_get(g,152i),m_msg(g,w,uniform,12i),address(params),640i)
+    # Request a drawable late, after preparing frame inputs. Pool drains at poll.
+    drawable=m_msg(g,w,native_get(g,24i),48i)
+    if drawable==native_null() then
+      return false
+    end
+    command=m_msg(g,w,native_get(g,16i),37i)
+    assert(command!=native_null())
+    gui_send(w,command,41i)
+    compute=m_msg(g,w,command,43i)
+    assert(compute!=native_null())
+    m_ptr(g,w,compute,44i,native_get(g,40i))
+    ccallv(msg,compute,m_sel(g,45i),uniform,0i,0i)
+    ccallv(msg,compute,m_sel(g,45i),points,0i,1i)
+    count=shl(1i,n)
+    store64(g,512i,(count+63i)/64i)
+    store64(g,520i,1i)
+    store64(g,528i,1i)
+    store64(g,536i,64i)
+    store64(g,544i,1i)
+    store64(g,552i,1i)
+    # MTLSize is a 24-byte non-HFA struct: Apple ARM64 passes each by reference.
+    ccallv(msg,compute,m_sel(g,46i),offset(address(g),512i),offset(address(g),536i))
+    m_send(g,w,compute,47i)
+    pass=m_msg(g,w,gui_class(w,"MTLRenderPassDescriptor"),50i)
+    assert(pass!=native_null())
+    attachments=m_msg(g,w,pass,19i)
+    color=ccallp(msg,attachments,m_sel(g,20i),0i)
+    target=m_msg(g,w,drawable,49i)
+    if load64(g,88i)>1i then
+      m_ptr(g,w,color,51i,native_get(g,104i))
+      m_ptr(g,w,color,52i,target)
+      m_int(g,w,color,54i,3i)
+    else
+      m_ptr(g,w,color,51i,target)
+      m_int(g,w,color,54i,1i)
+    end
+    m_int(g,w,color,53i,2i)
+    ccallv(msg,color,m_sel(g,55i),0.018f,0.027f,0.045f,1.0f)
+    depth=m_msg(g,w,pass,56i)
+    m_ptr(g,w,depth,51i,native_get(g,96i))
+    m_int(g,w,depth,53i,2i)
+    m_int(g,w,depth,54i,0i)
+    ccallv(msg,depth,m_sel(g,57i),1.0f)
+    render=ccallp(msg,command,m_sel(g,58i),pass)
+    assert(render!=native_null())
+    m_ptr(g,w,render,60i,native_get(g,64i))
+    m_int(g,w,render,65i,0i)
+    ccallv(msg,render,m_sel(g,61i),uniform,0i,0i)
+    ccallv(msg,render,m_sel(g,61i),points,0i,1i)
+    m_ptr(g,w,render,59i,native_get(g,48i))
+    ccallv(msg,render,m_sel(g,62i),3i,0i,6i,n*(count/2i))
+    m_ptr(g,w,render,59i,native_get(g,56i))
+    ccallv(msg,render,m_sel(g,62i),3i,0i,6i,count)
+    m_send(g,w,render,47i)
+    m_ptr(g,w,command,63i,drawable)
+    m_send(g,w,command,64i)
+    native_put(g,272i+slot*32i,command)
+  end
+  store64(g,112i,load64(g,112i)+1i)
+  store64(w,136i,load64(w,136i)+1i)
+  return true
+end

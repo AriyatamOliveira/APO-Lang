@@ -1,0 +1,62 @@
+[
+  {
+    "dimension": 1,
+    "vertices": 2,
+    "edges": 1
+  },
+  {
+    "dimension": 2,
+    "vertices": 4,
+    "edges": 4
+  },
+  {
+    "dimension": 3,
+    "vertices": 8,
+    "edges": 12
+  },
+  {
+    "dimension": 4,
+    "vertices": 16,
+    "edges": 32
+  },
+  {
+    "dimension": 5,
+    "vertices": 32,
+    "edges": 80
+  },
+  {
+    "dimension": 6,
+    "vertices": 64,
+    "edges": 192
+  },
+  {
+    "dimension": 7,
+    "vertices": 128,
+    "edges": 448
+  },
+  {
+    "dimension": 8,
+    "vertices": 256,
+    "edges": 1024
+  },
+  {
+    "dimension": 9,
+    "vertices": 512,
+    "edges": 2304
+  },
+  {
+    "dimension": 10,
+    "vertices": 1024,
+    "edges": 5120
+  },
+  {
+    "dimension": 11,
+    "vertices": 2048,
+    "edges": 11264
+  },
+  {
+    "dimension": 12,
+    "vertices": 4096,
+    "edges": 24576
+  }
+]

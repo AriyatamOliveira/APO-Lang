@@ -1,0 +1,35 @@
+# Absolute frame deadlines. Late frames skip deadlines, not simulation time.
+# Call once after presenting. rate is an exact number between 1 and 1000.
+fn frame_wait(start: number, rate: number): void
+  assert(rate >= 1 and rate <= 1000)
+  # Use a rounded-up microsecond period so non-decimal rates (e.g. 60) work.
+  period = (1000000i + int(rate) - 1i) / int(rate)
+  elapsed_us = int((clock() - start) * 1000000)
+  next_us = (elapsed_us / period + 1i) * period
+  sleep_until(start + number(next_us) / 1000000)
+end
+
+# FPS is a measurement, not exact-decimal arithmetic. Never divide number counts
+# by a sampled number duration: arbitrary intervals need nonterminating decimals.
+# Zero-duration sampling returns 0.0 instead of dividing by zero.
+fn frame_fps(frames: int, elapsed: number): float
+  assert(frames >= 0i and elapsed >= 0)
+  if elapsed == 0 then
+    return 0.0f
+  end
+  return float(frames) / float(elapsed)
+end
+
+# Per-frame deadline: unlike the legacy global-grid frame_wait, a render that
+# slightly overruns 16.667 ms does not wait all the way to the next grid slot.
+fn frame_deadline(frame_started: number, rate: number): number
+  assert(frame_started >= 0 and rate >= 1 and rate <= 1000)
+  period_us = (1000000i + int(rate) - 1i) / int(rate)
+  return frame_started + number(period_us) / 1000000
+end
+fn frame_pace(frame_started: number, rate: number): void
+  deadline = frame_deadline(frame_started, rate)
+  if deadline > clock() then
+    sleep_until(deadline)
+  end
+end

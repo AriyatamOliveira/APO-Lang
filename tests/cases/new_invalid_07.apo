@@ -1,0 +1,1 @@
+print view(alloc(1),0,1)

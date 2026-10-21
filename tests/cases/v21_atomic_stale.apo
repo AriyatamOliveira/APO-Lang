@@ -1,0 +1,3 @@
+b=alloc(8i)
+free(b)
+atomic_load(b,0i)

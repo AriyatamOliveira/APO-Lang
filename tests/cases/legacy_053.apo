@@ -1,0 +1,4 @@
+fn recurse(): int
+return recurse()
+end
+print recurse()

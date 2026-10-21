@@ -1,0 +1,2 @@
+s="Hello"
+print s[1], char_at(s,4), len(s), \nl

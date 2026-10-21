@@ -1,0 +1,14 @@
+# Compare build output and runtime instruction counts with/without --no-opt.
+# Do not use this as a cross-machine FPS benchmark.
+b = alloc(1048576i)
+i = 0i
+while i < 20i do
+  fill(b, i)
+  i += 1i
+end
+assert(b[0i] = 19 and b[1048575i] = 19)
+x = -1i
+y = 17i
+assert(x * y + 21i = 4i)
+free(b)
+print: "Optimization result OK", \nl

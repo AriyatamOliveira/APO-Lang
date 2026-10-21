@@ -1,0 +1,6 @@
+print: "Argument count (including executable): ", argc(), \nl
+index = 1i
+while index < argc() do
+  print: index, ": ", arg(index), \nl
+  index = index + 1i
+end

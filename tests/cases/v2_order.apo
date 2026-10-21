@@ -1,0 +1,11 @@
+fn one(b: buffer): int
+  store64(b, 0i, load64(b, 0i) + 1i)
+  return load64(b, 0i)
+end
+b = alloc(8i)
+x = 4i
+x += one(b)
+assert(x = 5i and load64(b, 0i) = 1i)
+assert(one(b) - one(b) = -1i)
+assert(100i / (one(b) + 1i) = 20i)
+free(b)

@@ -1,0 +1,4 @@
+fn square(x)
+ return x*x
+end
+print square(4), \nl

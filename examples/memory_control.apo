@@ -1,0 +1,22 @@
+use "../lib/memory.apo"
+# Direct byte layout with explicit lifetime, alignment and bulk operations.
+let data = alloc(32i)
+fill32(data, 0xff203040)
+store64(data, 8i, 123456789012345i)
+print: load64(data, 8i), \nl
+data = resize(data, 64i)
+assert(data[63i] = 0) # newly grown bytes are zeroed
+free(data)
+
+arena = arena_new(4096i)
+mark = arena_mark(arena)
+offset_bytes = arena_take(arena, 96i, 64i)
+assert(offset_bytes % 64i = 0i)
+storefloat(arena, offset_bytes, 0.125f)
+unsafe
+  raw = offset(address(arena), offset_bytes)
+  print: "Aligned address: ", raw, \nl
+  assert(band(address_int(raw), 63i) = 0i)
+end
+arena_reset(arena, mark) # previously returned regions are now logically invalid
+free(arena)

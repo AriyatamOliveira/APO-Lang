@@ -1,0 +1,5 @@
+fn greet(who: string): void
+ print who
+ return
+end
+greet("hello")

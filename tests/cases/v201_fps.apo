@@ -1,0 +1,18 @@
+use "../../lib/frame.apo"
+assert(frame_fps(0i, 0) == 0.0f)
+assert(frame_fps(60i, 2) == 30.0f)
+assert(abs(frame_fps(60i, 2.000001) - 29.9999850000075f) < 0.00000001f)
+print: "FPS ~ ", frame_fps(60i, 2.000001), \nl
+let tested = 0i
+for frames in 0i 1i 17i 60i 119i 1000i
+  let us = 2000001i
+  while us < 2002001i do
+    let elapsed = number(us) / 1000000
+    let rate = frame_fps(frames, elapsed)
+    assert(rate >= 0.0f)
+    assert(abs(rate * float(elapsed) - float(frames)) < 0.0000001f)
+    us += 1i
+    tested += 1i
+  end
+end
+print: tested, " awkward FPS samples passed", \nl

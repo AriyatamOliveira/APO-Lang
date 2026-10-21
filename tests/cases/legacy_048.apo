@@ -1,0 +1,4 @@
+fn text(a: string): string
+return a
+end
+print text("works")

@@ -1,0 +1,5 @@
+use "../../lib/frame.apo"
+start = clock()
+frame_wait(start, 60)
+assert(clock() >= start + 0.016667)
+

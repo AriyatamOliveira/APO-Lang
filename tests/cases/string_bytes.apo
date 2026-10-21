@@ -1,0 +1,2 @@
+s="A\0B"
+print len(s)," ",byte_at(s,1)," ",slice(s,2,1)," ",len(slice(s,3,0)),\nl

@@ -1,0 +1,60 @@
+use "../lib/window.apo"
+use "../lib/render3d.apo"
+use "../lib/frame.apo"
+# Real geometry every frame, with a fixed render resolution scaled in a native window.
+# Drag: orbit | wheel: zoom | Space: pause | R: reset | arrows: orbit | Esc: exit.
+# Any program argument makes this a three-second smoke test.
+window = window_open(960i, 720i, "APO 2.0 | Cube | Drag: orbit  Wheel: zoom  Space: pause  R: reset")
+image = r3_canvas(320i, 240i)
+vertices = alloc(8i * 48i)
+start = clock()
+last = start
+animation = 0.0f
+pitch = 0.45f
+yaw = 0.65f
+zoom = 0.9f
+paused = false
+print: "APO 2.0 native 3D cube. Drag / scroll / Space / R / arrow keys. Esc closes.", \nl
+while window_poll(window) do
+  now = clock()
+  dt = float(now - last)
+  last = now
+  if key_pressed(window, 49i) then
+    paused = not paused
+  end
+  if key_pressed(window, 15i) then
+    pitch = 0.45f
+    yaw = 0.65f
+    zoom = 0.9f
+  end
+  if not paused then
+    animation += dt * 0.65f
+  end
+  yaw += mouse_dx(window) * 0.008f
+  pitch += mouse_dy(window) * 0.008f
+  zoom *= r3_clamp(1.0f + mouse_scroll(window) * 0.04f, 0.5f, 1.5f)
+  zoom = r3_clamp(zoom, 0.15f, 5.0f)
+  if key_down(window, 123i) then
+    yaw -= dt
+  end
+  if key_down(window, 124i) then
+    yaw += dt
+  end
+  if key_down(window, 125i) then
+    pitch += dt
+  end
+  if key_down(window, 126i) then
+    pitch -= dt
+  end
+  r3_camera(image, 6.0f, zoom)
+  r3_clear(image, r3_rgb(13i, 17i, 23i))
+  r3_cube(image, vertices, pitch, yaw + animation)
+  window_present(window, image, 320i, 240i, 64i)
+  if argc() > 1i and now - start >= 3 then
+    break
+  end
+  frame_wait(start, 30)
+end
+window_close(window)
+free(vertices)
+free(image)

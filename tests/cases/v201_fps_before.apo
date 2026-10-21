@@ -1,0 +1,1 @@
+print: "FPS ~ ", number(60i) / 2.000001, \nl

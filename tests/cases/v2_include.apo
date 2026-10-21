@@ -1,0 +1,3 @@
+use "include/one.apo"
+use "./include/../include/one.apo"
+assert(imported(7i) = 21i)

@@ -1,0 +1,24 @@
+const answer = 42i
+let x = 1i
+x += 2i
+x *= 8i
+x -= 3i
+x /= 7i
+x %= 2i
+assert(x == 1i and answer = 42i)
+if true then
+  let x = 20i
+  assert(x = 20i)
+end
+assert(x = 1i)
+f = 0.25f
+f += 0.5f
+assert(f = 0.75f)
+fn sum(a: int, b: int): int
+  return a + b
+end
+assert(sum(
+  2i, # allowed comments inside multiline calls
+  3i
+) = 5i)
+print: "syntax", \nl

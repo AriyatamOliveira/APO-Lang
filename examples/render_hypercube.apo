@@ -1,0 +1,26 @@
+use "../lib/hypercube.apo"
+use "../lib/png.apo"
+dimension = 4i
+if argc() > 1i then
+  dimension = hc_dimension(arg(1i))
+end
+image = r3_canvas(500i, 400i)
+vertices = alloc(4096i * 48i)
+matrix = alloc(144i * 8i)
+temp = alloc(96i)
+scratch = alloc(16i)
+r3_camera(image, 4.5f, 0.75f)
+r3_clear(image, r3_rgb(13i, 17i, 23i))
+hc_vertices(image, vertices, matrix, temp, dimension, 6.0f, 0.4f, 0.6f)
+hc_draw(image, vertices, dimension, scratch)
+path = "out/hypercube-2.png"
+if argc() > 2i then
+  path = arg(2i)
+end
+r3_write_png(image, path)
+free(image)
+free(vertices)
+free(matrix)
+free(temp)
+free(scratch)
+print: "Rendered ", dimension, "D to ", path, \nl

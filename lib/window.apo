@@ -1,0 +1,350 @@
+use "native.apo"
+# Single-window, main-thread AppKit backend. Pixels are copied into Quartz-owned
+# storage before presentation: subsequent APO writes/frees cannot invalidate an image.
+# Public APIs use a checked buffer handle. The private ABI bridge is explicitly unsafe.
+fn gui_check(w: buffer): void
+  assert(len(w) = 4096 and load64(w, 0i) = 0x41504f57494e3230)
+end
+fn gui_sel(w: buffer, index: int): pointer
+  assert(index >= 0i and index < 64i)
+  return native_get(w, 2048i + index * 8i)
+end
+fn gui_class(w: buffer, name: string): pointer
+  b = native_text(name)
+  unsafe
+    result = ccallp(native_get(w, 168i), address(b))
+    free(b)
+    assert(result != native_null())
+    return result
+  end
+end
+fn gui_register(w: buffer, index: int, name: string): void
+  b = native_text(name)
+  unsafe
+    native_put(w, 2048i + index * 8i, ccallp(native_get(w, 176i), address(b)))
+  end
+  free(b)
+end
+fn gui_msg(w: buffer, object: pointer, index: int): pointer
+  unsafe
+    return ccallp(native_get(w, 160i), object, gui_sel(w, index))
+  end
+end
+fn gui_send(w: buffer, object: pointer, index: int): void
+  unsafe
+    ccallv(native_get(w, 160i), object, gui_sel(w, index))
+  end
+end
+fn gui_send_i(w: buffer, object: pointer, index: int, arg: int): void
+  unsafe
+    ccallv(native_get(w, 160i), object, gui_sel(w, index), arg)
+  end
+end
+fn gui_send_p(w: buffer, object: pointer, index: int, arg: pointer): void
+  unsafe
+    ccallv(native_get(w, 160i), object, gui_sel(w, index), arg)
+  end
+end
+fn gui_bool(w: buffer, object: pointer, index: int): bool
+  unsafe
+    return band(ccall(native_get(w, 160i), object, gui_sel(w, index)), 255i) != 0i
+  end
+end
+fn gui_string(w: buffer, text: string): pointer
+  b = native_text(text)
+  unsafe
+    object = gui_msg(w, gui_class(w, "NSString"), 0i)
+    result = ccallp(native_get(w, 160i), object, gui_sel(w, 2i), address(b))
+    free(b)
+    assert(result != native_null())
+    return result
+  end
+end
+fn window_title(w: buffer, text: string): void
+  gui_check(w)
+  title = gui_string(w, text)
+  gui_send_p(w, native_get(w, 8i), 12i, title)
+  gui_send(w, title, 3i)
+end
+fn window_open(width: int, height: int, title: string): buffer
+  assert(width >= 160i and height >= 120i and width <= 4096i and height <= 4096i)
+  w = alloc(4096i)
+  store64(w, 0i, 0x41504f57494e3230)
+  objc = native_library("/usr/lib/libobjc.A.dylib")
+  appkit = native_library("/System/Library/Frameworks/AppKit.framework/AppKit")
+  graphics = native_library("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+  system = native_library("/usr/lib/libSystem.B.dylib")
+  native_put(w, 160i, native_symbol(objc, "objc_msgSend"))
+  native_put(w, 168i, native_symbol(objc, "objc_getClass"))
+  native_put(w, 176i, native_symbol(objc, "sel_registerName"))
+  native_put(w, 184i, native_symbol(graphics, "CGBitmapContextCreate"))
+  native_put(w, 192i, native_symbol(graphics, "CGBitmapContextCreateImage"))
+  native_put(w, 200i, native_symbol(graphics, "CGContextRelease"))
+  native_put(w, 208i, native_symbol(graphics, "CGImageRelease"))
+  native_put(w, 216i, native_symbol(graphics, "CGColorSpaceRelease"))
+  native_put(w, 240i, native_symbol(system, "memcpy"))
+  native_put(w, 248i, native_symbol(graphics, "CGBitmapContextGetData"))
+  native_put(w, 1112i, native_symbol(graphics, "CGContextClearRect"))
+  index = 0i
+  for name in "alloc" "init" "initWithUTF8String:" "release" "sharedApplication" "setActivationPolicy:" "finishLaunching" "activateIgnoringOtherApps:" "initWithContentRect:styleMask:backing:defer:" "setReleasedWhenClosed:" "initWithFrame:" "setContentView:" "setTitle:" "center" "makeKeyAndOrderFront:" "setImageScaling:" "setAutoresizingMask:" "nextEventMatchingMask:untilDate:inMode:dequeue:" "type" "keyCode" "isARepeat" "sendEvent:" "updateWindows" "isVisible" "isMiniaturized" "isKeyWindow" "window" "deltaX" "deltaY" "scrollingDeltaY" "locationInWindow" "modifierFlags" "setImage:" "initWithCGImage:size:" "frame" "close" "drain" "displayIfNeeded" "setAcceptsMouseMovedEvents:" "setEditable:" "distantPast" "retain" "occlusionState"
+    gui_register(w, index, name)
+    index += 1i
+  end
+  pool_class = gui_class(w, "NSAutoreleasePool")
+  native_put(w, 224i, pool_class)
+  native_put(w, 32i, gui_msg(w, gui_msg(w, pool_class, 0i), 1i))
+  app = gui_msg(w, gui_class(w, "NSApplication"), 4i)
+  native_put(w, 16i, app)
+  gui_send_i(w, app, 5i, 0i) # NSApplicationActivationPolicyRegular
+  unsafe
+    window = ccallp(native_get(w, 160i), gui_msg(w, gui_class(w, "NSWindow"), 0i), gui_sel(w, 8i),
+      0.0f, 0.0f, float(width), float(height), 15i, 2i, 0i)
+    assert(window != native_null())
+    native_put(w, 8i, window)
+    gui_send_i(w, window, 9i, 0i) # Do not free the NSWindow behind the APO handle.
+    view_class = gui_class(w, "NSImageView")
+    view = ccallp(native_get(w, 160i), gui_msg(w, view_class, 0i), gui_sel(w, 10i),
+      0.0f, 0.0f, float(width), float(height))
+    assert(view != native_null())
+    native_put(w, 24i, view)
+    gui_send_i(w, view, 15i, 3i) # proportionally up/down, preserving framebuffer aspect
+    gui_send_i(w, view, 16i, 18i) # flexible width | flexible height
+    gui_send_i(w, view, 39i, 0i)
+    gui_send_p(w, window, 11i, view)
+    gui_send_i(w, window, 38i, 1i)
+    native_put(w, 56i, ccallp(native_symbol(graphics, "CGColorSpaceCreateDeviceRGB")))
+  end
+  native_put(w, 144i, gui_msg(w, gui_msg(w, gui_class(w, "NSDate"), 40i), 41i))
+  native_put(w, 232i, gui_class(w, "NSImage"))
+  native_put(w, 48i, gui_string(w, "kCFRunLoopDefaultMode"))
+  store64(w, 96i, width)
+  store64(w, 104i, height)
+  window_title(w, title)
+  gui_send(w, native_get(w, 8i), 13i)
+  gui_send(w, app, 6i)
+  gui_send_p(w, native_get(w, 8i), 14i, native_null())
+  gui_send_i(w, app, 7i, 1i)
+  return w
+end
+fn window_poll(w: buffer): bool
+  gui_check(w)
+  if load64(w, 64i) != 0i then
+    return false
+  end
+  if native_get(w, 40i) != native_null() then
+    gui_send(w, native_get(w, 40i), 36i)
+  end
+  native_put(w, 40i, gui_msg(w, gui_msg(w, native_get(w, 224i), 0i), 1i))
+  storefloat(w, 72i, 0.0f)
+  storefloat(w, 80i, 0.0f)
+  storefloat(w, 88i, 0.0f)
+  fill_range(w, 512i, 512i, 0i)
+  unsafe
+    msg = native_get(w, 160i)
+    app = native_get(w, 16i)
+    window = native_get(w, 8i)
+    events = 0i
+    while events < 512i do
+      event = ccallp(msg, app, gui_sel(w, 17i), -1i, native_get(w, 144i), native_get(w, 48i), 1i)
+      if event = native_null() then
+        break
+      end
+      events += 1i
+      type = ccall(msg, event, gui_sel(w, 18i))
+      owns_event = ccallp(msg, event, gui_sel(w, 26i)) = window
+      handled = false
+      if owns_event and (type = 10i or type = 11i) then
+        code = band(ccall(msg, event, gui_sel(w, 19i)), 65535i)
+        if code < 256i then
+          if type = 10i then
+            if w[256i + code] = 0 then
+              w[512i + code] = 1
+            end
+            w[256i + code] = 1
+          else
+            w[256i + code] = 0
+            w[768i + code] = 1
+          end
+        end
+        flags = ccall(msg, event, gui_sel(w, 31i))
+        if type = 10i and (code = 53i or (band(flags, 0x100000) != 0i and (code = 12i or code = 13i))) then
+          store64(w, 64i, 1i)
+        end
+        handled = true # avoid NSImageView's unhandled-key beep
+      end
+      in_content = false
+      if owns_event and (type = 1i or type = 2i or type = 5i or type = 6i or type = 22i) then
+        mx = ccallf(msg, event, gui_sel(w, 30i))
+        my = ccallf1(msg, event, gui_sel(w, 30i))
+        in_content = mx >= 0.0f and my >= 0.0f and mx < float(load64(w, 96i)) and my < float(load64(w, 104i))
+        storefloat(w, 112i, mx)
+        storefloat(w, 120i, float(load64(w, 104i)) - my)
+      end
+      # Let AppKit handle title-bar buttons/dragging instead of swallowing them.
+      if owns_event and type = 1i and in_content then
+        store64(w, 128i, 1i)
+        handled = true
+      end
+      if owns_event and type = 2i and load64(w, 128i) != 0i then
+        store64(w, 128i, 0i)
+        handled = true
+      end
+      if owns_event and type = 6i and load64(w, 128i) != 0i then
+        storefloat(w, 72i, loadfloat(w, 72i) + ccallf(msg, event, gui_sel(w, 27i)))
+        storefloat(w, 80i, loadfloat(w, 80i) + ccallf(msg, event, gui_sel(w, 28i)))
+        handled = true
+      end
+      if owns_event and type = 22i and in_content then
+        storefloat(w, 88i, loadfloat(w, 88i) + ccallf(msg, event, gui_sel(w, 29i)))
+        handled = true
+      end
+      if not handled then
+        gui_send_p(w, app, 21i, event)
+      end
+    end
+    gui_send(w, app, 22i)
+    view = native_get(w, 24i)
+    store64(w, 96i, trunc(ccallf2(msg, view, gui_sel(w, 34i))))
+    store64(w, 104i, trunc(ccallf3(msg, view, gui_sel(w, 34i))))
+    if not gui_bool(w, window, 23i) and not gui_bool(w, window, 24i) then
+      store64(w, 64i, 1i)
+    end
+    if not gui_bool(w, window, 25i) then
+      # Key-up can go to another app after focus changes: do not leave stuck keys.
+      fill_range(w, 256i, 256i, 0i)
+      store64(w, 128i, 0i)
+    end
+  end
+  return load64(w, 64i) = 0i
+end
+fn key_down(w: buffer, code: int): bool
+  gui_check(w)
+  assert(code >= 0i and code < 256i)
+  return w[256i + code] != 0
+end
+fn key_pressed(w: buffer, code: int): bool
+  gui_check(w)
+  assert(code >= 0i and code < 256i)
+  return w[512i + code] != 0
+end
+fn key_released(w: buffer, code: int): bool
+  gui_check(w)
+  assert(code >= 0i and code < 256i)
+  return w[768i + code] != 0
+end
+fn mouse_dx(w: buffer): float
+  gui_check(w)
+  return loadfloat(w, 72i)
+end
+fn mouse_dy(w: buffer): float
+  gui_check(w)
+  return loadfloat(w, 80i)
+end
+fn mouse_scroll(w: buffer): float
+  gui_check(w)
+  return loadfloat(w, 88i)
+end
+fn mouse_x(w: buffer): float
+  gui_check(w)
+  return loadfloat(w, 112i)
+end
+fn mouse_y(w: buffer): float
+  gui_check(w)
+  return loadfloat(w, 120i)
+end
+fn mouse_down(w: buffer): bool
+  gui_check(w)
+  return load64(w, 128i) != 0i
+end
+fn window_width(w: buffer): int
+  gui_check(w)
+  return load64(w, 96i)
+end
+fn window_height(w: buffer): int
+  gui_check(w)
+  return load64(w, 104i)
+end
+# Visibility is advisory, not lifetime ownership. Occluded windows still poll
+# events; applications can skip rasterization and sleep instead of burning CPU.
+fn window_drawable(w: buffer): bool
+  gui_check(w)
+  if load64(w, 64i) != 0i then
+    return false
+  end
+  window = native_get(w, 8i)
+  if gui_bool(w, window, 24i) or not gui_bool(w, window, 23i) then
+    return false
+  end
+  # Permit the first presentation while AppKit is still settling occlusion state.
+  if load64(w, 136i) == 0i then
+    return true
+  end
+  unsafe
+    return band(ccall(native_get(w, 160i), window, gui_sel(w, 42i)), 2i) != 0i
+  end
+end
+fn window_present(w: buffer, pixels: buffer, width: int, height: int, byte_offset: int): void
+  gui_check(w)
+  assert(width >= 1i and height >= 1i and width <= 2048i and height <= 2048i)
+  assert(byte_offset >= 0i and byte_offset <= int(len(pixels)))
+  assert(width * height * 4i <= int(len(pixels)) - byte_offset)
+  if load64(w, 64i) != 0i then
+    return
+  end
+  unsafe
+    # Reuse the Quartz context object until the framebuffer size changes.
+    # NEVER keep the raw data address: Quartz may change it for copy-on-write.
+    context = native_get(w, 1088i)
+    if context == native_null() or load64(w, 1096i) != width or load64(w, 1104i) != height then
+      if context != native_null() then
+        ccallv(native_get(w, 200i), context)
+      end
+      context = ccallp(native_get(w, 184i), native_null(), width, height, 8i, width * 4i,
+        native_get(w, 56i), 0x4001) # RGBA8, premultiplied alpha
+      assert(context != native_null())
+      native_put(w, 1088i, context)
+      store64(w, 1096i, width)
+      store64(w, 1104i, height)
+    end
+    # Mutate through Quartz first, forcing previous immutable snapshots to detach
+    # before writing into the current bitmap. Full clear is intentional for safety.
+    ccallv(native_get(w, 1112i), context, 0.0f, 0.0f, float(width), float(height))
+    target = ccallp(native_get(w, 248i), context)
+    assert(target != native_null())
+    ccallp(native_get(w, 240i), target, offset(address(pixels), byte_offset), width * height * 4i)
+    image = ccallp(native_get(w, 192i), context)
+    assert(image != native_null())
+    object = gui_msg(w, native_get(w, 232i), 0i)
+    object = ccallp(native_get(w, 160i), object, gui_sel(w, 33i), image, float(width), float(height))
+    assert(object != native_null())
+    gui_send_p(w, native_get(w, 24i), 32i, object)
+    gui_send(w, object, 3i)
+    ccallv(native_get(w, 208i), image)
+    gui_send(w, native_get(w, 24i), 37i)
+    gui_send(w, native_get(w, 16i), 22i)
+  end
+  store64(w, 136i, load64(w, 136i) + 1i)
+end
+fn window_close(w: buffer): void
+  gui_check(w)
+  store64(w, 64i, 1i)
+  if load64(w, 1120i) == 0i then
+    gui_send_p(w, native_get(w, 24i), 32i, native_null())
+  end
+  gui_send(w, native_get(w, 8i), 35i)
+  gui_send(w, native_get(w, 8i), 3i)
+  gui_send(w, native_get(w, 24i), 3i)
+  gui_send(w, native_get(w, 48i), 3i)
+  gui_send(w, native_get(w, 144i), 3i)
+  unsafe
+    if native_get(w, 1088i) != native_null() then
+      ccallv(native_get(w, 200i), native_get(w, 1088i))
+    end
+    ccallv(native_get(w, 216i), native_get(w, 56i))
+  end
+  if native_get(w, 40i) != native_null() then
+    gui_send(w, native_get(w, 40i), 36i)
+  end
+  gui_send(w, native_get(w, 32i), 36i)
+  free(w)
+end

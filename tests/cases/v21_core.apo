@@ -1,0 +1,22 @@
+use float32
+use frame
+let values=alloc(16i)
+for f in -123.5f -1.0f 0.0f 0.125f 1.0f 65536.0f
+  storef32(values,0i,f)
+  assert(loadf32(values,0i)==f)
+end
+assert(float32_bits(1.0f)==0x3f800000)
+assert(float32_from_bits(0x80000000)==0.0f)
+atomic_store(values,0i,9223372036854775807i)
+assert(atomic_add(values,0i,1i)==9223372036854775807i)
+assert(atomic_load(values,0i)==-9223372036854775808i)
+let sample=0i
+while sample<1000i do
+  assert(frame_fps(60i,2.000001+number(sample)*0.000001)>0.0f)
+  sample+=1i
+end
+assert(frame_fps(0i,0)==0.0f)
+assert(0.1+0.2==0.3)
+free(values)
+println "New core checks passed"
+

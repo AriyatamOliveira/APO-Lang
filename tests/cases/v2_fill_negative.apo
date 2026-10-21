@@ -1,0 +1,2 @@
+b = alloc(10i)
+fill_range(b, -1i, 1i, 1i)

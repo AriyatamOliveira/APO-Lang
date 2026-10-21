@@ -1,0 +1,7 @@
+b=alloc(32)
+store16(b,1,65535)
+store32(b,4,4294967295)
+store64(b,8,-9223372036854775808i)
+storenum(b,16,0.1+0.2)
+print load16(b,1), " ", load32(b,4), " ", load64(b,8), " ", loadnum(b,16), \nl
+free(b)

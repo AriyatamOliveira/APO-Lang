@@ -1,0 +1,5 @@
+b=alloc(3)
+copy(b,0,"abc",0,3)
+copy(b,3,b,3,0)
+write_bytes(b,0,3)
+free(b)

@@ -1,0 +1,2 @@
+let score = 1i
+set score: int = 2i

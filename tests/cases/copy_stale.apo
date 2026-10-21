@@ -1,0 +1,5 @@
+b=alloc(2)
+a=b
+free(b)
+c=alloc(2)
+copy(c,0,a,0,1)

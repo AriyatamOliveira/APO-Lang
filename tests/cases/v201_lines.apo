@@ -1,0 +1,38 @@
+use "../../lib/render3d.apo"
+use "../reference/line_20.apo"
+let a = r3_canvas(128i, 96i)
+let b = r3_canvas(128i, 96i)
+let v = alloc(2i * 48i)
+let clip = alloc(16i)
+r3_camera(a, 4.5f, 0.75f)
+r3_camera(b, 4.5f, 0.75f)
+let cases = 0i
+let seed = 17i
+while cases < 80i do
+  r3_clear(a, 0xff111111)
+  r3_clear(b, 0xff111111)
+  let i = 0i
+  while i < 2i do
+    seed = (seed * 48271i) % 2147483647i
+    let x = float(seed % 1601i - 800i) / 80.0f
+    seed = (seed * 48271i) % 2147483647i
+    let y = float(seed % 1601i - 800i) / 80.0f
+    seed = (seed * 48271i) % 2147483647i
+    let z = float(seed % 801i - 600i) / 100.0f
+    r3_vertex(a, v, i, x, y, z)
+    i += 1i
+  end
+  r3_line(a, v, 0i, 1i, 0xff00ff80, clip)
+  reference_line(b, v, 0i, 1i, 0xff00ff80, clip)
+  let at = 64i
+  while at < int(len(a)) do
+    assert(load64(a, at) == load64(b, at))
+    at += 8i
+  end
+  cases += 1i
+end
+free(clip)
+free(v)
+free(b)
+free(a)
+print: "80 line cases: identical color/depth bytes", \nl

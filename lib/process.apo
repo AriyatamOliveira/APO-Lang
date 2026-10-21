@@ -1,0 +1,102 @@
+use native
+# No shell expansion: every argument remains a separate argv entry.
+fn process_new(path: string): buffer
+  request=alloc(32768i)
+  store64(request,0i,0x41504f50524f4331)
+  store64(request,8i,0i)
+  store64(request,16i,1024i)
+  n=int(len(path))
+  assert(n>0i and n<4096i)
+  i=0i
+  while i<n do
+    assert(byte_at(path,i)!=0i)
+    i+=1i
+  end
+  copy(request,1024i,path,0i,n)
+  request[1024i+n]=0i
+  unsafe
+    native_put(request,64i,offset(address(request),1024i))
+  end
+  store64(request,8i,1i)
+  store64(request,16i,1025i+n)
+  return request
+end
+fn process_arg(request: buffer,text: string): void
+  assert(len(request)==32768 and load64(request,0i)==0x41504f50524f4331)
+  count=load64(request,8i)
+  pos=load64(request,16i)
+  n=int(len(text))
+  assert(count<64i and n<32768i-pos)
+  i=0i
+  while i<n do
+    assert(byte_at(text,i)!=0i)
+    i+=1i
+  end
+  copy(request,pos,text,0i,n)
+  request[pos+n]=0i
+  unsafe
+    native_put(request,64i+count*8i,offset(address(request),pos))
+  end
+  store64(request,8i,count+1i)
+  store64(request,16i,pos+n+1i)
+end
+fn process_capture(request: buffer,output: string,errors: string): int
+  assert(len(request)==32768 and load64(request,0i)==0x41504f50524f4331)
+  system=native_library("/usr/lib/libSystem.B.dylib")
+  spawn=native_symbol(system,"posix_spawn")
+  wait=native_symbol(system,"waitpid")
+  errfn=native_symbol(system,"__error")
+  state=alloc(512i)
+  out=native_text(output)
+  err=native_text(errors)
+  actions=native_null()
+  destroy=native_null()
+  unsafe
+    if output!="" or errors!="" then
+      actions=offset(address(state),64i)
+      init=native_symbol(system,"posix_spawn_file_actions_init")
+      addopen=native_symbol(system,"posix_spawn_file_actions_addopen")
+      destroy=native_symbol(system,"posix_spawn_file_actions_destroy")
+      assert(ccall(init,actions)==0i)
+      if output!="" then
+        assert(ccall(addopen,actions,1i,address(out),1537i,420i)==0i)
+      end
+      if errors!="" then
+        assert(ccall(addopen,actions,2i,address(err),1537i,420i)==0i)
+      end
+    end
+    status=ccall(spawn,address(state),native_get(request,64i),actions,native_null(),offset(address(request),64i),envp())
+    if actions!=native_null() then
+      ccall(destroy,actions)
+    end
+    free(out)
+    free(err)
+    if status!=0i then
+      println "Cannot start process; posix_spawn error ",status
+      free(state)
+      return 127i
+    end
+    pid=int(load32(state,0i))
+    while true do
+      result=sar(shl(ccall(wait,pid,offset(address(state),8i),0i),32i),32i)
+      if result==pid then
+        break
+      end
+      if result == -1i and peek32(ccallp(errfn)) == 4 then
+        continue
+      end
+      println "waitpid failed"
+      free(state)
+      return 127i
+    end
+    status=int(load32(state,8i))
+    free(state)
+    if band(status,127i)==0i then
+      return band(shr(status,8i),255i)
+    end
+    return 128i+band(status,127i)
+  end
+end
+fn process_run(request: buffer): int
+  return process_capture(request,"","")
+end

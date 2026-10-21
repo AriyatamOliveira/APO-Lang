@@ -1,0 +1,126 @@
+use native
+fn fs_exists(path: string): bool
+  text=native_text(path)
+  unsafe
+    fd=syscall(5i,address(text),0i,0i,0i,0i,0i)
+    free(text)
+    if fd<0i then
+      return false
+    end
+    syscall(6i,fd,0i,0i,0i,0i,0i)
+  end
+  return true
+end
+fn fs_mkdir(path: string): int
+  text=native_text(path)
+  unsafe
+    result=syscall(136i,address(text),493i,0i,0i,0i,0i)
+    free(text)
+    return result
+  end
+end
+fn fs_remove(path: string,directory: bool): int
+  text=native_text(path)
+  nr=10i
+  if directory then
+    nr=137i
+  end
+  unsafe
+    result=syscall(nr,address(text),0i,0i,0i,0i,0i)
+    free(text)
+    return result
+  end
+end
+fn fs_rename(source: string,destination: string): int
+  a=native_text(source)
+  b=native_text(destination)
+  unsafe
+    result=syscall(128i,address(a),address(b),0i,0i,0i,0i)
+    free(a)
+    free(b)
+    return result
+  end
+end
+# Eight-byte byte-count header, followed by file bytes; handles empty files too.
+fn fs_read(path: string): buffer
+  text=native_text(path)
+  unsafe
+    fd=syscall(5i,address(text),0i,0i,0i,0i,0i)
+    free(text)
+    if fd<0i then
+      println "Cannot read file: ",path
+      exit 66i
+    end
+    work=alloc(8388617i)
+    used=0i
+    while used<8388609i do
+      count=syscall(3i,fd,offset(address(work),8i+used),8388609i-used,0i,0i,0i)
+      if count == -4i then
+        continue
+      end
+      if count<0i then
+        syscall(6i,fd,0i,0i,0i,0i,0i)
+        free(work)
+        println "File read failed: ",path
+        exit 74i
+      end
+      if count==0i then
+        break
+      end
+      used+=count
+    end
+    syscall(6i,fd,0i,0i,0i,0i,0i)
+    assert(used<=8388608i)
+    result=alloc(used+8i)
+    store64(result,0i,used)
+    copy(result,8i,work,8i,used)
+    free(work)
+    return result
+  end
+end
+fn fs_text(data: buffer): string
+  unsafe
+    return view(data,8i,load64(data,0i))
+  end
+end
+fn fs_equal(a: string,b: string): bool
+  first=fs_read(a)
+  second=fs_read(b)
+  same=fs_text(first)==fs_text(second)
+  free(first)
+  free(second)
+  return same
+end
+fn fs_join(a: string,b: string): string
+  bytes=alloc(int(len(a))+int(len(b))+1i)
+  copy(bytes,0i,a,0i,len(a))
+  copy(bytes,len(a),b,0i,len(b))
+  unsafe
+    return view(bytes,0i,len(a)+len(b))
+  end
+end
+# Joins are small tool-driver strings and are retained until process exit.
+fn fs_integer(value: int): string
+  assert(value>=0i)
+  bytes=alloc(32i)
+  p=32i
+  while true do
+    p-=1i
+    bytes[p]=48i+value%10i
+    value/=10i
+    if value==0i then
+      break
+    end
+  end
+  unsafe
+    return view(bytes,p,32i-p)
+  end
+end
+# Owned version for loops. Keep the buffer alive while using fs_text(result).
+fn fs_join_owned(a: string,b: string): buffer
+  bytes=alloc(8i+int(len(a))+int(len(b)))
+  store64(bytes,0i,int(len(a))+int(len(b)))
+  copy(bytes,8i,a,0i,len(a))
+  copy(bytes,8i+int(len(a)),b,0i,len(b))
+  return bytes
+end

@@ -1,0 +1,35 @@
+use "../../lib/render3d.apo"
+a = r3_canvas(48i, 36i)
+b = r3_canvas(48i, 36i)
+v = alloc(8i * 48i)
+clip = alloc(16i)
+r3_clear(a, r3_rgb(1i, 2i, 3i))
+r3_clear(b, r3_rgb(1i, 2i, 3i))
+r3_vertex(a, v, 0i, -1.0f, -1.0f, 0.0f)
+r3_vertex(a, v, 1i, 1.0f, -1.0f, 0.0f)
+r3_vertex(a, v, 2i, 0.0f, 1.0f, 0.0f)
+r3_vertex(a, v, 3i, -1.0f, -1.0f, 1.0f)
+r3_vertex(a, v, 4i, 1.0f, -1.0f, 1.0f)
+r3_vertex(a, v, 5i, 0.0f, 1.0f, 1.0f)
+r3_triangle(a, v, 0i, 1i, 2i, r3_rgb(255i, 0i, 0i))
+r3_triangle(a, v, 3i, 4i, 5i, r3_rgb(0i, 255i, 0i))
+r3_triangle(b, v, 3i, 4i, 5i, r3_rgb(0i, 255i, 0i))
+r3_triangle(b, v, 0i, 1i, 2i, r3_rgb(255i, 0i, 0i))
+i = 64i
+while i < 64i + 48i * 36i * 4i do
+  assert(a[i] = b[i])
+  i += 1i
+end
+# Far finite coordinates used to reach int conversion before offscreen rejection.
+r3_vertex(a, v, 0i, 1000000000000000f * 1000000f, -1.0f, 0.0f)
+r3_vertex(a, v, 1i, 1000000000000001f * 1000000f, -1.0f, 0.0f)
+r3_vertex(a, v, 2i, 1000000000000000f * 1000000f, 1.0f, 0.0f)
+r3_triangle(a, v, 0i, 1i, 2i, r3_rgb(1i, 2i, 3i))
+# Near- and viewport-clipped line crossing the visible rectangle.
+r3_vertex(a, v, 0i, -100.0f, 0.0f, -7.0f)
+r3_vertex(a, v, 1i, 100.0f, 0.0f, 0.0f)
+r3_line(a, v, 0i, 1i, r3_rgb(255i, 255i, 255i), clip)
+free(clip)
+free(v)
+free(a)
+free(b)

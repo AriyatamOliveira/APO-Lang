@@ -1,0 +1,4 @@
+b=alloc(8)
+fill(b,65)
+write_bytes(b,2,3)
+free(b)

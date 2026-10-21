@@ -1,0 +1,1 @@
+print shl(1i,63i), " ", shr(-1i,63i), " ", sar(-8i,2i), \nl

@@ -1,0 +1,12 @@
+fn bump(b: buffer): int
+  store64(b, 0i, load64(b, 0i) + 1i)
+  return load64(b, 0i)
+end
+let b = alloc(8i)
+assert(bump(b) + 1i == 2i)
+assert(bump(b) - 1i == 1i)
+assert(bump(b) == 3i)
+assert(false and bump(b) == 4i or true)
+assert(load64(b, 0i) == 3i)
+println: "order"
+free(b)

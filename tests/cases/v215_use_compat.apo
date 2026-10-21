@@ -1,0 +1,2 @@
+use "include/v215_value.APO" // from a case-sensitive filesystem
+println: imported_value()

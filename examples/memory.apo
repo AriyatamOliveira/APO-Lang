@@ -1,0 +1,9 @@
+b = alloc(32)
+copy(b, 0, "Hello APO", 0, 9)
+copy(b, 1, b, 0, 8) # memmove semantics: overlapping copies are supported
+write_bytes(b, 0, 9)
+print: \nl
+store64(b, 16, 9223372036854775807i)
+storefloat(b, 24, float(1) / float(8))
+print: load64(b, 16), " ", loadfloat(b, 24), \nl
+free(b)

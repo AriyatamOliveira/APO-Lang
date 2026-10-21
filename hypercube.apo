@@ -1,0 +1,3 @@
+use hypercube_app
+
+hypercube_app(false)

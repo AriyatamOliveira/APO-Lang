@@ -1,0 +1,393 @@
+# APO 1.5 CPU renderer. All geometry, lighting, projection, and depth tests run here.
+# No stored frames, GPU API, native graphics library, or external renderer.
+fn pi(): float
+  unsafe
+    return float_from_bits(0x400921fb54442d18)
+  end
+end
+fn sin(x: float): float
+  tau = pi() * float(2)
+  a = x - floor((x + pi()) / tau) * tau
+  term = a
+  result = a
+  k = 1i
+  while k <= 10i do
+    term = -term * a * a / float((2i * k) * (2i * k + 1i))
+    result = result + term
+    k = k + 1i
+  end
+  return result
+end
+fn cos(x: float): float
+  return sin(x + pi() / float(2))
+end
+fn fmin(a: float, b: float): float
+  if a < b then
+    return a
+  end
+  return b
+end
+fn fmax(a: float, b: float): float
+  if a > b then
+    return a
+  end
+  return b
+end
+fn canvas(width: int, height: int, aspect: float): buffer
+  assert(width >= 16i and height >= 16i and width <= 800i and height <= 600i)
+  assert(aspect > float(0))
+  depth_offset = band(64i + width * height * 3i + 7i, -8i)
+  image = alloc(depth_offset + width * height * 8i)
+  store64(image, 0, width)
+  store64(image, 8, height)
+  storefloat(image, 16, aspect)
+  store64(image, 24, depth_offset)
+  return image
+end
+fn clear(image: buffer): void
+  width = load64(image, 0)
+  height = load64(image, 8)
+  zoff = load64(image, 24)
+  y = 0i
+  while y < height do
+    x = 0i
+    while x < width do
+      index = y * width + x
+      # Subtle background gradient; the object is calculated separately.
+      store8(image, 64i + index * 3i, 11i + y * 8i / height)
+      store8(image, 65i + index * 3i, 16i + y * 10i / height)
+      store8(image, 66i + index * 3i, 27i + y * 14i / height)
+      storefloat(image, zoff + index * 8i, float(0))
+      x = x + 1i
+    end
+    y = y + 1i
+  end
+end
+fn vertex(image: buffer, vertices: buffer, i: int, x: float, y: float, z: float): void
+  width = float(load64(image, 0))
+  height = float(load64(image, 8))
+  camera_z = z + float(6)
+  focal = width * float(0.9)
+  p = i * 48i
+  storefloat(vertices, p, x)
+  storefloat(vertices, p + 8i, y)
+  storefloat(vertices, p + 16i, camera_z)
+  assert(camera_z > float(0.1))
+  storefloat(vertices, p + 24i, width / float(2) + x * focal / camera_z)
+  storefloat(vertices, p + 32i, height * float(0.46) - y * focal * loadfloat(image, 16) / camera_z)
+  storefloat(vertices, p + 40i, float(1) / camera_z)
+end
+fn edge(ax: float, ay: float, bx: float, by: float, px: float, py: float): float
+  return (px - ax) * (by - ay) - (py - ay) * (bx - ax)
+end
+fn triangle(image: buffer, vertices: buffer, ia: int, ib: int, ic: int, red: int, green: int, blue: int): void
+  a = ia * 48i
+  b = ib * 48i
+  c = ic * 48i
+  ax = loadfloat(vertices, a + 24i)
+  ay = loadfloat(vertices, a + 32i)
+  bx = loadfloat(vertices, b + 24i)
+  by = loadfloat(vertices, b + 32i)
+  cx = loadfloat(vertices, c + 24i)
+  cy = loadfloat(vertices, c + 32i)
+  area = edge(ax, ay, bx, by, cx, cy)
+  if abs(area) < float(0.000001) then
+    return
+  end
+  ux = loadfloat(vertices, b) - loadfloat(vertices, a)
+  uy = loadfloat(vertices, b + 8i) - loadfloat(vertices, a + 8i)
+  uz = loadfloat(vertices, b + 16i) - loadfloat(vertices, a + 16i)
+  vx = loadfloat(vertices, c) - loadfloat(vertices, a)
+  vy = loadfloat(vertices, c + 8i) - loadfloat(vertices, a + 8i)
+  vz = loadfloat(vertices, c + 16i) - loadfloat(vertices, a + 16i)
+  nx = uy * vz - uz * vy
+  ny = uz * vx - ux * vz
+  nz = ux * vy - uy * vx
+  length = sqrt(nx * nx + ny * ny + nz * nz)
+  if length = float(0) then
+    return
+  end
+  # Two-sided Lambert lighting. Cube winding does not determine visibility.
+  light = abs(nx * float(0.4) + ny * float(0.8) - nz * float(0.6)) / (length * sqrt(float(1.16)))
+  shade = float(0.24) + light * float(0.76)
+  r = trunc(float(red) * shade)
+  g = trunc(float(green) * shade)
+  bl = trunc(float(blue) * shade)
+  width = load64(image, 0)
+  height = load64(image, 8)
+  zoff = load64(image, 24)
+  x0 = trunc(fmax(float(0), floor(fmin(ax, fmin(bx, cx)))))
+  x1 = trunc(fmin(float(width - 1i), ceil(fmax(ax, fmax(bx, cx)))))
+  y0 = trunc(fmax(float(0), floor(fmin(ay, fmin(by, cy)))))
+  y1 = trunc(fmin(float(height - 1i), ceil(fmax(ay, fmax(by, cy)))))
+  za = loadfloat(vertices, a + 40i)
+  zb = loadfloat(vertices, b + 40i)
+  zc = loadfloat(vertices, c + 40i)
+  y = y0
+  while y <= y1 do
+    x = x0
+    while x <= x1 do
+      px = float(x) + float(0.5)
+      py = float(y) + float(0.5)
+      w0 = edge(bx, by, cx, cy, px, py) / area
+      w1 = edge(cx, cy, ax, ay, px, py) / area
+      w2 = float(1) - w0 - w1
+      if w0 >= float(0) and w1 >= float(0) and w2 >= float(0) then
+        inverse_z = w0 * za + w1 * zb + w2 * zc
+        index = y * width + x
+        if inverse_z > loadfloat(image, zoff + index * 8i) then
+          storefloat(image, zoff + index * 8i, inverse_z)
+          store8(image, 64i + index * 3i, r)
+          store8(image, 65i + index * 3i, g)
+          store8(image, 66i + index * 3i, bl)
+        end
+      end
+      x = x + 1i
+    end
+    y = y + 1i
+  end
+end
+fn face(image: buffer, vertices: buffer, a: int, b: int, c: int, d: int, r: int, g: int, bl: int): void
+  triangle(image, vertices, a, b, c, r, g, bl)
+  triangle(image, vertices, a, c, d, r, g, bl)
+end
+fn draw_cube(image: buffer, vertices: buffer, angle: float, reverse_order: bool): void
+  sy = sin(angle)
+  cy = cos(angle)
+  sx = sin(angle * float(0.67))
+  cx = cos(angle * float(0.67))
+  i = 0i
+  while i < 8i do
+    x = float(band(i, 1i) * 2i - 1i)
+    y = float(band(shr(i, 1i), 1i) * 2i - 1i)
+    z = float(band(shr(i, 2i), 1i) * 2i - 1i)
+    xx = x * cy + z * sy
+    zz = -x * sy + z * cy
+    yy = y * cx - zz * sx
+    zzz = y * sx + zz * cx
+    vertex(image, vertices, i, xx, yy, zzz)
+    i = i + 1i
+  end
+  i = 0i
+  while i < 6i do
+    f = i
+    if reverse_order then
+      f = 5i - i
+    end
+    if f = 0i then
+      face(image, vertices, 0i, 1i, 3i, 2i, 80i, 174i, 245i)
+    end
+    if f = 1i then
+      face(image, vertices, 4i, 6i, 7i, 5i, 249i, 165i, 62i)
+    end
+    if f = 2i then
+      face(image, vertices, 0i, 2i, 6i, 4i, 66i, 211i, 180i)
+    end
+    if f = 3i then
+      face(image, vertices, 1i, 5i, 7i, 3i, 248i, 98i, 113i)
+    end
+    if f = 4i then
+      face(image, vertices, 2i, 3i, 7i, 6i, 255i, 215i, 116i)
+    end
+    if f = 5i then
+      face(image, vertices, 0i, 4i, 5i, 1i, 168i, 116i, 244i)
+    end
+    i = i + 1i
+  end
+end
+fn draw_floor(image: buffer, vertices: buffer): void
+  z = -3i
+  while z < 5i do
+    x = -5i
+    while x < 5i do
+      vertex(image, vertices, 0i, float(x), float(-1.85), float(z))
+      vertex(image, vertices, 1i, float(x + 1i), float(-1.85), float(z))
+      vertex(image, vertices, 2i, float(x + 1i), float(-1.85), float(z + 1i))
+      vertex(image, vertices, 3i, float(x), float(-1.85), float(z + 1i))
+      value = 47i
+      if band(x + z, 1i) = 0i then
+        value = 75i
+      end
+      face(image, vertices, 0i, 1i, 2i, 3i, value, value + 8i, value + 18i)
+      x = x + 1i
+    end
+    z = z + 1i
+  end
+end
+fn show_ascii(image: buffer, text: buffer): void
+  width = load64(image, 0)
+  height = load64(image, 8)
+  gradient = " .:-=+*#%@"
+  y = 0i
+  while y < height do
+    x = 0i
+    while x < width do
+      index = y * width + x
+      r = int(load8(image, 64i + index * 3i))
+      g = int(load8(image, 65i + index * 3i))
+      b = int(load8(image, 66i + index * 3i))
+      luminance = (r * 54i + g * 183i + b * 19i) / 256i
+      level = luminance * 9i / 255i
+      text[y * (width + 1i) + x] = byte_at(gradient, level)
+      x = x + 1i
+    end
+    text[y * (width + 1i) + width] = 10
+    y = y + 1i
+  end
+  print: "\e[HAPO 1.5 | LIVE 3D CUBE | calculated triangles + depth buffer", \nl
+  write_bytes(text, 0, (width + 1i) * height)
+  print: "Ctrl+C stops | elapsed-time rotation | 20 FPS target", \nl
+end
+fn write_fd_bytes(fd: int, data: buffer, offset_bytes: int, count: int): void
+  assert(offset_bytes >= 0i and count >= 0i and offset_bytes + count <= int(len(data)))
+  unsafe
+    done = 0i
+    while done < count do
+      result = syscall(4i, fd, offset(address(data), offset_bytes + done), count - done, 0i, 0i, 0i)
+      if result != -4i then
+        assert(result > 0i)
+        done = done + result
+      end
+    end
+  end
+end
+# PNG encoder written in APO: RGB8, filter 0, stored DEFLATE blocks, CRC-32, Adler-32.
+fn png_be32(b: buffer, p: int, value: int): void
+  b[p] = band(shr(value, 24i), 255i)
+  b[p + 1i] = band(shr(value, 16i), 255i)
+  b[p + 2i] = band(shr(value, 8i), 255i)
+  b[p + 3i] = band(value, 255i)
+end
+fn crc_table(): buffer
+  table = alloc(256 * 8)
+  n = 0i
+  while n < 256i do
+    c = n
+    k = 0i
+    while k < 8i do
+      if band(c, 1i) = 1i then
+        c = bxor(shr(c, 1i), 0xedb88320)
+      else
+        c = shr(c, 1i)
+      end
+      k = k + 1i
+    end
+    store64(table, n * 8i, c)
+    n = n + 1i
+  end
+  return table
+end
+fn png_crc(b: buffer, start: int, count: int, table: buffer): int
+  c = 0xffffffff
+  i = 0i
+  while i < count do
+    index = band(bxor(c, int(b[start + i])), 255i)
+    c = bxor(load64(table, index * 8i), shr(c, 8i))
+    i = i + 1i
+  end
+  return bxor(c, 0xffffffff)
+end
+fn encode_png(image: buffer): buffer
+  width = load64(image, 0)
+  height = load64(image, 8)
+  row_bytes = width * 3i + 1i
+  raw_size = row_bytes * height
+  pixels = alloc(raw_size)
+  y = 0i
+  while y < height do
+    pixels[y * row_bytes] = 0 # no PNG predictor filter
+    copy(pixels, y * row_bytes + 1i, image, 64i + y * width * 3i, width * 3i)
+    y = y + 1i
+  end
+  blocks = (raw_size + 65534i) / 65535i
+  compressed_size = 6i + raw_size + blocks * 5i
+  b = alloc(57i + compressed_size)
+  b[0] = 137
+  copy(b, 1, "PNG\r\n", 0, 5)
+  b[6] = 26
+  b[7] = 10
+  png_be32(b, 8i, 13i)
+  copy(b, 12, "IHDR", 0, 4)
+  png_be32(b, 16i, width)
+  png_be32(b, 20i, height)
+  b[24] = 8 # bits per channel
+  b[25] = 2 # RGB, no alpha
+  table = crc_table()
+  png_be32(b, 29i, png_crc(b, 12i, 17i, table))
+  png_be32(b, 33i, compressed_size)
+  copy(b, 37, "IDAT", 0, 4)
+  b[41] = 120 # zlib CMF: DEFLATE with 32 KiB window
+  b[42] = 1   # FLG: no dictionary, valid modulo-31 header check
+  pos = 43i
+  consumed = 0i
+  while consumed < raw_size do
+    count = raw_size - consumed
+    if count > 65535i then
+      count = 65535i
+    end
+    last = 0i
+    if consumed + count = raw_size then
+      last = 1i
+    end
+    b[pos] = last # BFINAL, BTYPE=00, aligned to the following byte
+    store16(b, pos + 1i, count)
+    store16(b, pos + 3i, bxor(count, 65535i))
+    copy(b, pos + 5i, pixels, consumed, count)
+    pos = pos + 5i + count
+    consumed = consumed + count
+  end
+  a = 1i
+  sum = 0i
+  i = 0i
+  while i < raw_size do
+    a = (a + int(pixels[i])) % 65521i
+    sum = (sum + a) % 65521i
+    i = i + 1i
+  end
+  png_be32(b, pos, shl(sum, 16i) + a)
+  pos = pos + 4i
+  assert(pos = 41i + compressed_size)
+  png_be32(b, pos, png_crc(b, 37i, 4i + compressed_size, table))
+  pos = pos + 4i
+  png_be32(b, pos, 0i)
+  copy(b, pos + 4i, "IEND", 0, 4)
+  png_be32(b, pos + 8i, png_crc(b, pos + 4i, 4i, table))
+  assert(pos + 12i = int(len(b)))
+  free(table)
+  free(pixels)
+  return b
+end
+fn write_png(image: buffer, path: string): void
+  assert(len(path) > 4 and slice(path, int(len(path)) - 4i, 4) = ".png")
+  i = 0i
+  while i < int(len(path)) do
+    assert(byte_at(path, i) != 0i)
+    i = i + 1i
+  end
+  data = encode_png(image)
+  name = alloc(int(len(path)) + 1i)
+  copy(name, 0, path, 0, len(path))
+  unsafe
+    fd = syscall(5i, address(name), 1537i, 420i, 0i, 0i, 0i)
+    assert(fd >= 0i)
+    write_fd_bytes(fd, data, 0i, int(len(data)))
+    assert(syscall(6i, fd, 0i, 0i, 0i, 0i, 0i) = 0i)
+  end
+  free(name)
+  free(data)
+end
+
+# A static 3D render saved as PNG. No external image encoder is used.
+image = canvas(320i, 240i, float(1))
+vertices = alloc(8 * 48)
+clear(image)
+draw_floor(image, vertices)
+draw_cube(image, vertices, float(0.65), false)
+path = "out/cube.png"
+if argc() > 1i then
+  path = arg(1i)
+end
+write_png(image, path)
+free(vertices)
+free(image)
+print: "Rendered ", path, " (320 x 240)", \nl

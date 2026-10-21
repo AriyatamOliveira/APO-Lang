@@ -1,0 +1,2014 @@
+[
+  {
+    "name": "legacy_000",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Hi\nHello\n",
+    "stderr": "",
+    "instructions": 106,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_001",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "0.3\n",
+    "stderr": "",
+    "instructions": 147,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_002",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "1;-2;3;",
+    "stderr": "",
+    "instructions": 324,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_003",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "16\n",
+    "stderr": "",
+    "instructions": 187,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_004",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "3628800\n",
+    "stderr": "",
+    "instructions": 637,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_005",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "123\n",
+    "stderr": "",
+    "instructions": 292,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_006",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "hello",
+    "stderr": "",
+    "instructions": 70,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_007",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "2\n",
+    "stderr": "",
+    "instructions": 163,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_008",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "-9223372036854775808\n9223372036854775807\n-1\n",
+    "stderr": "",
+    "instructions": 520,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_009",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "123 123 42\n",
+    "stderr": "",
+    "instructions": 318,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_010",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "3 -3 1.5\n",
+    "stderr": "",
+    "instructions": 313,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_011",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "-1 0 1 2\n",
+    "stderr": "",
+    "instructions": 387,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_012",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "15 3 4 -1\n",
+    "stderr": "",
+    "instructions": 359,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_013",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "-9223372036854775808 1 -2\n",
+    "stderr": "",
+    "instructions": 426,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_014",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "13",
+    "stderr": "",
+    "instructions": 307,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_015",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "13",
+    "stderr": "",
+    "instructions": 289,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_016",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Hi32 0\n",
+    "stderr": "",
+    "instructions": 549,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_017",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "65535 4294967295 -9223372036854775808 0.3\n",
+    "stderr": "",
+    "instructions": 1117,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_018",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "AAA",
+    "stderr": "",
+    "instructions": 260,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_019",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "72 123456789012345\nHi",
+    "stderr": "",
+    "instructions": 689,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_020",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Z",
+    "stderr": "",
+    "instructions": 293,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_021",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "eo5\n",
+    "stderr": "",
+    "instructions": 204,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_022",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 161,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_023",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 158,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_024",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 178,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_025",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 189,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_026",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 259,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_027",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 171,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_028",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: allocation size must be 1..1073741824 bytes\n",
+    "instructions": 57,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_029",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: allocation size must be 1..1073741824 bytes\n",
+    "instructions": 58,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_030",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: integer value required (no implicit rounding)\n",
+    "instructions": 54,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_031",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: allocation size must be 1..1073741824 bytes\n",
+    "instructions": 64,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_032",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: value does not fit the selected unsigned memory width\n",
+    "instructions": 157,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_033",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: value does not fit the selected unsigned memory width\n",
+    "instructions": 157,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_034",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: integer value required (no implicit rounding)\n",
+    "instructions": 153,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_035",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: integer value required (no implicit rounding)\n",
+    "instructions": 53,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_036",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 43,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_037",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 54,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_038",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 50,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_039",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: shift count must be 0..63\n",
+    "instructions": 56,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_040",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: shift count must be 0..63\n",
+    "instructions": 56,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_041",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: assertion failed\n",
+    "instructions": 48,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_042",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: invalid time, clock failure, or timer range exceeded\n",
+    "instructions": 78,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_043",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: result needs more than 6 decimal places\nHint: use float(a) / float(b) for approximate ratios.\n",
+    "instructions": 100,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_044",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: decimal overflow\n",
+    "instructions": 57,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_045",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: decimal overflow\n",
+    "instructions": 56,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_046",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "false true",
+    "stderr": "",
+    "instructions": 109,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_047",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "136",
+    "stderr": "",
+    "instructions": 371,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_048",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "works",
+    "stderr": "",
+    "instructions": 68,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_049",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "B",
+    "stderr": "",
+    "instructions": 281,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_050",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 198,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_051",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "1100",
+    "stderr": "",
+    "instructions": 139825,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_052",
+    "mode": "error",
+    "compile_exit": 0,
+    "result": "model-unsupported",
+    "diagnostic": "instruction limit at 0x100001728"
+  },
+  {
+    "name": "legacy_053",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: function stack limit exceeded (1 MiB)\n",
+    "instructions": 327729,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_054",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 52,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_055",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: decimal overflow\n",
+    "instructions": 54,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_056",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: division by zero\n",
+    "instructions": 46,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_057",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: division by zero\n",
+    "instructions": 47,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_058",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 64,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_059",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "0",
+    "stderr": "",
+    "instructions": 74,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "legacy_060",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "0x0000000000001234",
+    "stderr": "",
+    "instructions": 214,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "random_integer_1200",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "618665367636616287,0,-619727667\n-48692912583487608,0,-58266231\n-289694465230396100,0,416531260\n46899470469192434,1,122788105\n28942273943217675,20,-32373895\n321998681457722568,0,459540744\n603342744638368800,1,-332641511\n-361605241988253830,-2,-42692709\n-448159799894076760,0,659709148\n252306917345442024,0,389312911\n130614490466903112,1,-218207854\n511465087504289324,1,320258348\n-105344839099486080,0,275986377\n422056767983539950,1,292298565\n76132743463785400,0,-157364872\n-256346197163529750,-3,-84989985\n-401968777312905760,-1,399365406\n33640656999444858,0,39088978\n-564922832905799732,-1,431880184\n94536092675600338,0,232250483\n292013708755733598,0,-397750006\n257456461578132132,0,269981487\n-11523020279546064,0,33926077\n-302983162921054265,0,-462865105\n230532883211481823,1,-60102258\n34132346095588435,1,45786126\n-99246732058768869,0,152185113\n-510400187020855376,-1,-108090790\n93266897274200554,5,-84955057\n186761076542598425,4,89126315\n131736866534904104,5,-95721798\n-433311868260568847,0,-460791683\n-154923427132833184,0,379078112\n-669502397867199632,0,-743036513\n372307776490294855,2,-21869329\n42635237104169920,0,72807008\n-164689357154722032,-1,216590434\n136682113456243488,1,149768318\n-69684359688649296,-4,10019040\n-226890152228199348,0,-375695691\n57567938414979870,6,-788088\n-62456849746309716,-14,-46219550\n-637208010577663568,0,752853832\n638293593086235443,1,111697678\n-127356454727090240,-2,180939564\n200342917819463790,1,285069401\n101221161199993842,3,-37767711\n-612919937279669616,0,-709639629\n-669204340876342560,0,703834464\n-68013837095646750,-3,-11786469\n69810818061712726,1,-8071185\n-106578496122255766,-3,-103616663\n-274708959862383468,-1,111310837\n-333122300796549519,-1,-26242690\n-529996890918251220,0,689301645\n-14925976271504832,-39,-12575092\n688265682329918418,1,-311003053\n144510603501675953,2,195130251\n-769855172195663249,0,867887693\n86054024569568000,0,202948415\n218913575937945805,1,-85646508\n631700670222315520,0,787455296\n-893372389330893653,0,918098411\n766582329609166175,1,53639138\n192181177939504498,1,-245548263\n-70116222134552774,0,-149015483\n-279323957249149340,0,300522211\n-195236689469987003,-1,-28609862\n459032891598086193,1,-230310168\n153213856227011160,0,261920565\n293461157509627755,0,-355491205\n-144990572992701299,0,-333608533\n769925302698394271,0,-874568101\n94874642647088640,0,125731002\n-357832250441727517,-1,199800036\n176860705807176534,1,84680067\n-355601757963137022,-1,49425621\n176132638916292527,1,75562526\n-97534550716668450,0,105335055\n178039223678470032,3,74996904\n-327805812088565943,0,551076689\n52936933131809930,0,219033470\n45774443030711319,12,-20230767\n-409030092162637704,0,-625207797\n431505031373899535,0,-616340803\n-84181222117815931,-3,-14384992\n-208431528912599811,0,307493459\n-784469169190862820,0,-864875956\n6299209398687420,0,-34748214\n-74837113064676,-11031,-57075\n769718550097560396,1,-182242396\n91471840740365634,0,148185231\n642046616975013320,1,-146184866\n447998721998899575,1,150375046\n-14448385553914166,0,35423299\n-108549144074103668,-2,-52021650\n-15695439133356360,-2,53428398\n-117321100369006135,0,-161073479\n17550676915122000,2,-5839810\n-169820148504871983,0,-275432961\n-654395637433169580,-1,69131027\n-14444683608140728,-6,-13324682\n-22486290777572616,0,35749128\n-2253117408307992,0,-28195246\n149597304154485852,0,-355199642\n130428301393935846,0,313665863\n-177907628831063672,0,302167598\n535075904865211392,1,68422784\n10625478648738228,36,-762768\n-165913149929274972,0,-393157638\n83719474913512152,7,-50104438\n455892697043448237,0,492031107\n42506529300578610,0,-159538374\n487217506191201075,1,163281778\n49271043813957100,2,-127380529\n-441404898208795091,-1,-134979506\n656152464710398410,1,-81573991\n-389572061501763850,-1,-343809735\n104219023217463792,8,-102529210\n120076253194687128,0,223619832\n146702235131164174,0,-267944138\n-106202677117317693,-6,-119785347\n234925999253413040,0,-426065912\n82776308883790480,0,274687372\n-134570682523189640,-1,235399033\n-213415858508261913,-2,-165331939\n214704954242798850,3,-141719783\n-109990388750148732,0,-223342161\n-504433568394004226,0,686464019\n1545590653737424,74,4468190\n-52791860847203352,0,85060962\n-344001857082018160,0,-416205182\n-91942451304787083,-6,97756233\n-350115569203432337,-1,-46813736\n579474439444729597,1,-305561436\n-56910798183062802,-16,-7826431\n-329017132570844160,-2,147852429\n199905730539855542,1,265772779\n-615098962178445888,0,723561108\n-187575836150282295,-4,-112079317\n8620222495878385,0,-11142005\n-582960093292935909,0,-684669789\n344674078152045880,2,-97015336\n206187350179852587,0,278972841\n-262430671811701824,0,271532601\n332517167392943178,0,415998486\n-43081006464971475,0,92625775\n-131455754553255012,0,-242234172\n-69139417642599900,0,184247025\n450825715569840562,1,255713211\n-11115649167769292,0,19519862\n-75850240164514686,0,-142068186\n-497089607463823380,0,608095340\n166751762014504092,0,177480887\n-339060714173130180,0,420072862\n562152942649875457,0,655253681\n553614127843185460,0,-555114572\n-45142699504290249,-4,-65974079\n-317945400458109270,-1,32390797\n-184082745996551896,0,-349054108\n-60779925189398164,0,185145937\n-197738497745944764,0,-369515748\n-3479336411340669,0,3761007\n-515613144724851736,0,-598964434\n154928901797881396,0,-187163164\n-48777572390992522,0,-198758071\n-374053707237433939,0,420900353\n-250664164515024027,0,-307245143\n-256055580543350050,-1,243890955\n142110529872285730,1,15113979\n-1375113212412016,-2,8807011\n872428661186156120,0,904884670\n368452026393709671,0,-407040081\n187450387106246329,0,196224041\n557316185184389016,0,-603376808\n-160499650199053489,0,-223682803\n61655428316022615,4,-50350733\n-310627480189736112,-2,-289965748\n62377403561581466,2,-82630239\n-5219008800570948,-14,-2659591\n-592947853865972992,0,649581964\n480002264264153106,1,169866615\n-421875937859838084,-1,45006992\n339862125196148984,2,110597382\n-410041673905778688,0,474350836\n-393220656186435616,-1,-356768580\n41557498136184240,1,-58660942\n-325375876130708418,0,-458973453\n-65707184897099781,-5,67588936\n337058232568829200,0,371756948\n-334724916096209144,-2,175451448\n-13503038940330840,-5,-2491094\n218497765803710708,0,-229108754\n73320817805751120,0,81766428\n82211672545215884,0,-235521737\n359303332812781410,1,334515269\n-12320088544967616,0,21845748\n153900238012906995,3,75502128\n-6353166101235516,-77,7384271\n-7542033091656095,-33,-8001454\n-887918334235705459,-1,3747858\n-381404884015442394,-1,-161987357\n-49636356582774456,0,201447576\n-403746584071941710,-1,-9533941\n241547546412668638,1,-51987753\n53879966642311410,0,158540719\n-687262050399075008,0,816417899\n-283340167444292112,0,-472853304\n-140124189837821145,-6,82149739\n-706876008084987328,0,-734458552\n503638965322786800,0,-544423100\n-295570684618671612,-1,-308499229\n81226226950885368,0,-267893802\n6920838635761386,0,56247142\n-43425138202018729,-4,71821281\n316279579513194648,2,225375304\n24822610720968060,0,-32391359\n-394183709186664735,-2,-23662293\n92051536680080064,0,-158841369\n-255542541617822732,-3,-57884096\n-252965774292090600,-1,173321146\n456104460012042618,0,476253813\n149162077675542240,2,-137438764\n21898212596304550,0,48826450\n-454871560633639626,-1,371357261\n-215758060227879839,0,-264228073\n-700507984116644902,-1,140489271\n30965564388576510,0,45630258\n-121400931372297736,0,166277807\n-18092943405822630,0,-27409521\n316761974557700666,0,-556443857\n105170831586179800,8,5562044\n-227570287554906804,0,432852954\n319624549658825060,1,170080867\n382877214489889504,1,-8074140\n-162935239628616858,0,-194998226\n-37529120879047056,-4,53683045\n-77304613998917844,-1,-173665907\n63085640583663844,7,-86760693\n356840667541070874,0,478323342\n-541426722091719142,0,558365963\n-337923168068487585,0,-513500803\n818752209503908394,0,-891546326\n-107957977672438530,0,-316125177\n284162247006504465,2,-91598141\n9123247834062194,0,9790753\n-729809253787538652,0,827962811\n-92492988861266050,-7,-47353575\n181833364955206407,0,-299423919\n-365241098499462878,-1,-94483507\n5040668100782526,0,-38845641\n215073119584271480,0,226005080\n161138030026782312,2,-160867570\n182689434168867056,3,180049622\n-48225251293944600,0,75159412\n12349691449789320,3,41269782\n-176998748387496024,-1,207175490\n-294916456639468062,-1,-345839151\n748490254743254064,0,-788416831\n603588462428198460,0,748592652\n-204701765872267972,0,246711311\n19006019873795136,42,9394994\n4007139483738294,0,-21748591\n-90929377152470404,-2,-31693942\n-96344030367342736,0,118519412\n146239613941963927,5,94361678\n-67656122261518176,0,77308272\n180869628861788267,0,241449583\n-171230992808396632,-2,52366990\n464481616451380412,1,480638561\n-91385585804502120,-3,10577593\n34357242970828195,12,51127489\n719599623773896302,1,-122552701\n-17984539634601680,-19,-17178217\n122441518945203907,2,-101508113\n653218382106841292,1,323552284\n103538874025967675,0,-116010725\n496336002705099105,1,491434424\n-98883984027457788,0,189016647\n-399684385813884102,0,-464922543\n250540976663116243,3,-53125328\n-241270290219560910,0,-296092335\n440218065614867280,1,-175944189\n-20865070731970790,0,-130635685\n-59570646871548780,0,125315767\n371648425384981813,1,3289332\n-322990473208124564,-2,270000198\n36603204940602364,0,149803718\n554850059565238479,0,-566692539\n344652031619647333,1,263785188\n-389710945506058524,0,551553523\n107458811268110578,5,83495309\n-75777919432111180,0,93012706\n703532777780093235,0,769194501\n168562366950424201,1,-153832464\n-23358845692380429,-1,-30796428\n-217566117004336,-5,1176586\n830458664269495330,1,131658819\n-24907252458315136,-4,28062168\n-34503801482482332,0,-64296111\n-110843866363736695,0,241231085\n-52350670613987109,-2,-59150093\n-473471307773078208,0,488477154\n-568421396624398740,-1,-53752648\n420889611901123575,0,-632570085\n276587127109180640,3,154755857\n-116473345148161998,-6,67317513\n58448072417507788,0,116369674\n-112898847895633254,-3,63113589\n557394338602312962,1,218568631\n27389662284930504,0,-44745411\n-96346912187082960,0,-136779768\n-20114325679750110,-1,31583667\n3380108532154137,0,8580159\n-2038371085070031,0,23683287\n-647713443494761608,-1,-110159138\n-92303916707788104,-7,16136318\n-22549359034917160,0,-43111480\n398805581510883120,0,-432320280\n402006517622408960,1,27937078\n-149301963656407440,-1,171289114\n77277370335440172,0,178558756\n-291799805989161846,-1,197921879\n9667936688770560,5,6150845\n124895850826995259,3,-71500304\n239592963176356748,2,145829046\n-82144939502510808,0,183970952\n4817084704632618,26,68992\n744999092014640034,0,-775711374\n260661299210219805,1,44058748\n-5803042675944000,-83,6413348\n-172682511749726624,-5,-91050396\n-14125476504946048,-2,43047004\n-94026756981626154,-2,-165334552\n-129388113414760860,-6,25051433\n32557781808554268,18,36466050\n251975374950624640,1,-196518198\n-281711567944089080,0,-384530552\n-468238505323466943,-1,344221842\n698084852681542032,0,748455918\n-521881574100774400,0,646518592\n-332997465997562464,-1,-328219338\n-52685735963483685,0,66839163\n160832467540458363,0,245668011\n78287774915197893,0,-245671071\n-143005154192228835,0,-359964917\n-406862380996526637,-1,335561964\n-17761485836346,-7,-737891\n-831749605935298285,-1,35820348\n-71972034202946526,-8,-85069433\n48424242379237911,0,-200197947\n608065074390122496,1,201617196\n-180078604001187423,-2,83825705\n-343648681641624558,0,-432852886\n36087131430342190,5,-19138261\n68483979084219490,0,75419138\n-339892447345369685,0,421386755\n317668593780837840,0,364152840\n-132635748053980540,0,316385942\n24150784572195252,3,45251700\n-127909738504958092,-5,129602891\n-894025564206444736,0,-914875456\n-61635782925371193,0,193083737\n-30149605726293750,0,-103350514\n90777316261452016,0,-92164816\n-78247825792732622,-8,-34917186\n-367678088422241850,0,379877850\n589567799694713848,0,761383144\n6593300360399134,129,-6287509\n-617128571523830460,-1,-303743428\n68835114683180384,3,-73907554\n-203876861282669032,-2,-93424738\n44769736432320900,13,-47043256\n-116668143949599033,-5,-124299452\n11787852839042427,0,-85557367\n-44526373439313375,-5,-2688710\n-322906083522055592,0,508320266\n-54691340186042758,0,-67433482\n362095593219080609,0,-466242847\n-783343870228090689,0,-833688591\n-19138299571111050,-12,10535025\n-393120047709582996,0,-605498349\n-727600439307404643,-1,76349282\n197842813270684630,3,180289193\n-202940169037837380,-2,227900102\n351397716280595580,2,254392894\n124246414481425100,5,-90135099\n115612344898708068,1,123595648\n-504893254231462217,-1,448494656\n232353684603295684,0,279837349\n99092290000228964,0,-251433197\n-79990466391314405,-1,-141775364\n133234194918114352,4,-11795823\n1993056087542325,25,2346484\n-132129195477076840,0,171904355\n-16749172777608425,-15,-31675174\n-20914364009325728,-16,17133268\n273958529049462036,0,506055563\n168236005314443040,2,-3211246\n428321621445609282,1,441154379\n",
+    "stderr": "",
+    "instructions": 176077,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_basics",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "0.125 1.414214 -1 0 -3\n",
+    "stderr": "",
+    "instructions": 864,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "negative_zero",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "-9223372036854775808 true\n",
+    "stderr": "",
+    "instructions": 325,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "ieee_unordered",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "false true false false false false\n",
+    "stderr": "",
+    "instructions": 445,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_int_range",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "-9223372036854775808\n",
+    "stderr": "",
+    "instructions": 269,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_bits_memory",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "ok",
+    "stderr": "",
+    "instructions": 420,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "asm_add",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "12 -9223372036854775808\n",
+    "stderr": "",
+    "instructions": 361,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "syscall_errno",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "-9\n",
+    "stderr": "",
+    "instructions": 135,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "string_bytes",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "3 0 B 0\n",
+    "stderr": "",
+    "instructions": 422,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "copy_ends",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "abc",
+    "stderr": "",
+    "instructions": 416,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_fraction",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: integer value required (no implicit rounding)\n",
+    "instructions": 82,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_sqrt_negative",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: non-finite floating result\n",
+    "instructions": 70,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_divzero",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: division by zero\n",
+    "instructions": 84,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "float_upper",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 66,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "slice_negative",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 78,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "slice_huge",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 74,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "copy_dest",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 197,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "copy_source",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 209,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "copy_negative",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 196,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "copy_stale",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 314,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "arg_negative",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 49,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "arg_end",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 49,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "view_freed",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 199,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "new_invalid_00",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_00.apo:1:15: floating remainder is not supported\n"
+  },
+  {
+    "name": "new_invalid_01",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_01.apo:1:16: type mismatch (conversions must be explicit)\n"
+  },
+  {
+    "name": "new_invalid_02",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_02.apo:1:1: cannot assign a void result\n"
+  },
+  {
+    "name": "new_invalid_03",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_03.apo:1:7: this operation requires unsafe ... end\n"
+  },
+  {
+    "name": "new_invalid_04",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_04.apo:3:7: asm32 opcode must be a 32-bit integer literal\n"
+  },
+  {
+    "name": "new_invalid_05",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_05.apo:2:7: asm32 opcode must be a 32-bit integer literal\n"
+  },
+  {
+    "name": "new_invalid_06",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_06.apo:1:7: this operation requires unsafe ... end\n"
+  },
+  {
+    "name": "new_invalid_07",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_07.apo:1:7: this operation requires unsafe ... end\n"
+  },
+  {
+    "name": "new_invalid_08",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_08.apo:1:7: number literals allow at most 6 decimal places\n"
+  },
+  {
+    "name": "new_invalid_09",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_09.apo:1:7: invalid numeric suffix; exponent notation is not supported\n"
+  },
+  {
+    "name": "new_invalid_10",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_10.apo:1:7: hex literal requires digits\n"
+  },
+  {
+    "name": "new_invalid_11",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_11.apo:1:7: unknown string escape\n"
+  },
+  {
+    "name": "new_invalid_12",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_12.apo:2:8: type mismatch (conversions must be explicit)\n"
+  },
+  {
+    "name": "new_invalid_13",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_13.apo:3:1: expected end after if\n"
+  },
+  {
+    "name": "new_invalid_14",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_14.apo:1:7: wrong number of built-in arguments\n"
+  },
+  {
+    "name": "new_invalid_15",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/new_invalid_15.apo:1:12: expected closing ]\n"
+  },
+  {
+    "name": "deep_expr",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/deep_expr.apo:1:135: expression nesting exceeds 128\n"
+  },
+  {
+    "name": "deep_blocks",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/deep_blocks.apo:66:1: block nesting exceeds 64\n"
+  },
+  {
+    "name": "wide_ast",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/wide_ast.apo:1:262: expression tree exceeds depth 128\n"
+  },
+  {
+    "name": "many_vars",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/many_vars.apo:2049:1: stack frame exceeds 2048 local slots\n"
+  },
+  {
+    "name": "overlap_exhaustive",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "far_branch",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "large_string",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "timing",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "timed",
+    "stderr": "",
+    "instructions": 200911,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "exit_int",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 7,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 29,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "rasterizer",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v2_syntax",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "syntax\n",
+    "stderr": "",
+    "instructions": 287,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_decimal",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "0.3\n",
+    "stderr": "",
+    "instructions": 171,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_order",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 797,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_leaf",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 319,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_fill",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 1061,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_memory",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Memory OK\n",
+    "stderr": "",
+    "instructions": 3311,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_ffi",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v2_ffi_float",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v2_fill_differential",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v2_renderer",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v2_timing",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 167571,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_const_reassign",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_const_reassign.apo:2:1: cannot reassign a const binding\n"
+  },
+  {
+    "name": "v2_const_compound",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_const_compound.apo:2:1: cannot reassign a const binding\n"
+  },
+  {
+    "name": "v2_let_duplicate",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_let_duplicate.apo:2:5: let/const cannot redeclare a name in the same scope\n"
+  },
+  {
+    "name": "v2_unknown_compound",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_unknown_compound.apo:1:1: compound assignment requires an existing variable\n"
+  },
+  {
+    "name": "v2_equals_statement",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_equals_statement.apo:1:3: expected = (assignment), not == (comparison)\n"
+  },
+  {
+    "name": "v2_delimiter",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_delimiter.apo:1:14: mismatched closing delimiter\n"
+  },
+  {
+    "name": "v2_unclosed",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_unclosed.apo:3:1: unclosed parenthesis or bracket\n"
+  },
+  {
+    "name": "v2_float_digits",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_float_digits.apo:1:5: float literal exceeds 17 digits; use explicit arithmetic\n"
+  },
+  {
+    "name": "v2_float_mix",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_float_mix.apo:1:12: type mismatch (conversions must be explicit)\n"
+  },
+  {
+    "name": "v2_ffi_unsafe",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_ffi_unsafe.apo:1:11: this operation requires unsafe ... end\n"
+  },
+  {
+    "name": "v2_ffi_type",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_ffi_type.apo:3:7: C ABI arguments must be int, pointer, or float\n"
+  },
+  {
+    "name": "v2_ffi_regs",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v2_ffi_regs.apo:3:7: ccall supports at most eight integer and eight FP argument registers; no stack arguments\n"
+  },
+  {
+    "name": "v2_ffi_null",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 54,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_fill_end",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 165,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_fill_negative",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 161,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_fill_value",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: value does not fit the selected unsigned memory width\n",
+    "instructions": 138,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_fill_width",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 173,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_resize_alias",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 458,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_arena_align",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: assertion failed\n",
+    "instructions": 510,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_include",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "instructions": 70,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v2_include_cycle",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "apo: cyclic use: /mnt/data/apo-2.1.5/tests/cases/include/loopa.apo\n"
+  },
+  {
+    "name": "v2_include_lex",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/include/bad.apo:1:5: unknown string escape\n"
+  },
+  {
+    "name": "v201_fps_before",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "FPS ~ ",
+    "stderr": "APO runtime error: result needs more than 6 decimal places\nHint: use float(a) / float(b) for approximate ratios.\n",
+    "instructions": 165,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_fps",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "model-unsupported",
+    "diagnostic": "instruction limit at 0x100002740"
+  },
+  {
+    "name": "v201_decimal",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Exact decimal rules unchanged\n",
+    "stderr": "",
+    "instructions": 90,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_topology",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v201_vertices",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v201_lines",
+    "mode": "ok",
+    "compile_exit": 0,
+    "result": "compile-only"
+  },
+  {
+    "name": "v201_edges_invalid",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: assertion failed\n",
+    "instructions": 79322,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_pacing",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Deadline and late-frame tests passed\n",
+    "stderr": "",
+    "instructions": 470400,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Native DDA endpoints passed\n",
+    "stderr": "",
+    "instructions": 10807,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_short",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 196,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_magic",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 660,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_depth",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 681,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_steps",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 641,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_color",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: value does not fit the selected unsigned memory width\n",
+    "instructions": 648,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_nan",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: non-finite floating result\n",
+    "instructions": 672,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_lifetime",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 636,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v201_kernel_coordinate",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 674,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_build_smoke",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "APO 2.0.15 ready\n0.3\n42\n",
+    "stderr": "",
+    "instructions": 512,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_println",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "one two\n\n\nthree four\n\n",
+    "stderr": "",
+    "instructions": 216,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_elif",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "11\n22\n33\n55\n1\n",
+    "stderr": "",
+    "instructions": 675,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_set",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "10 72\n",
+    "stderr": "",
+    "instructions": 389,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_trailing",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "6\n",
+    "stderr": "",
+    "instructions": 221,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_bom",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "BOM\n",
+    "stderr": "",
+    "instructions": 62,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_crlf",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "CRLF\n",
+    "stderr": "",
+    "instructions": 62,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_use_compat",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "21\n",
+    "stderr": "",
+    "instructions": 112,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_immediates",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "immediates\n",
+    "stderr": "",
+    "instructions": 284,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_effect_order",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "order\n",
+    "stderr": "",
+    "instructions": 685,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_update_loop",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "1249975000\n",
+    "stderr": "",
+    "instructions": 1450179,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_set_unknown",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_set_unknown.apo:1:5: set requires an existing variable; use let to declare one\n"
+  },
+  {
+    "name": "v215_set_const",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_set_const.apo:2:5: cannot reassign a const binding\n"
+  },
+  {
+    "name": "v215_set_annotated",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_set_annotated.apo:2:5: set requires an assignment, without a type annotation\n"
+  },
+  {
+    "name": "v215_set_call",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_set_call.apo:2:5: set requires an assignment, without a type annotation\n"
+  },
+  {
+    "name": "v215_elif_top",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_elif_top.apo:1:1: unexpected end, else, or elif\n"
+  },
+  {
+    "name": "v215_elif_type",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_elif_type.apo:2:6: type mismatch (conversions must be explicit)\n"
+  },
+  {
+    "name": "v215_elif_missing_then",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_elif_missing_then.apo:2:10: expected then after elif condition\n"
+  },
+  {
+    "name": "v215_elif_return",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_elif_return.apo:1:4: non-void function must return on every path\n"
+  },
+  {
+    "name": "v215_elif_too_many",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_elif_too_many.apo:66:1: elif chain exceeds 64 branches\n"
+  },
+  {
+    "name": "v215_trailing_double",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_trailing_double.apo:4:6: expected an expression\n"
+  },
+  {
+    "name": "v215_trailing_empty",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_trailing_empty.apo:4:3: expected an expression\n"
+  },
+  {
+    "name": "v215_println_trailing",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_println_trailing.apo:1:11: expected an expression\n"
+  },
+  {
+    "name": "v215_const_scope",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v215_const_scope.apo:3:5: cannot reassign a const binding\n"
+  },
+  {
+    "name": "v215_overflow_add",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 48,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_overflow_sub",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: 64-bit integer overflow\n",
+    "instructions": 49,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v215_decimal_overflow",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: decimal overflow\n",
+    "instructions": 48,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_core",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "New core checks passed\n",
+    "stderr": "",
+    "instructions": 229116,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_parallel",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Parallel ranges, contention, and joins passed\n",
+    "stderr": "",
+    "instructions": 740285,
+    "callback_checks": 82,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_named",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "Named imports passed\n",
+    "stderr": "",
+    "instructions": 582,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_named_duplicate",
+    "mode": "ok",
+    "compile_exit": 0,
+    "exit": 0,
+    "stdout": "once\n",
+    "stderr": "",
+    "instructions": 62,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_missing",
+    "mode": "reject",
+    "compile_exit": 66,
+    "result": "pass-rejection",
+    "diagnostic": "apo: library not found: no_such_library; searched /mnt/data/apo-2.1.5/lib/no_such_library.apo; set APO_LIB or pass --lib-dir\n"
+  },
+  {
+    "name": "v21_invalid_import",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "apo: /mnt/data/apo-2.1.5/tests/cases/v21_invalid_import.apo: expected a library name or quoted .apo path after use\n"
+  },
+  {
+    "name": "v21_task_alloc",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_alloc.apo:2:3: operation is not permitted inside a task: alloc\n"
+  },
+  {
+    "name": "v21_task_print",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_print.apo:2:3: printing and process exit are not allowed inside tasks\n"
+  },
+  {
+    "name": "v21_task_call",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_call.apo:4:3: tasks can call only task functions, not ordinary functions\n"
+  },
+  {
+    "name": "v21_task_signature",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_signature.apo:1:9: task signature must be (data: buffer, begin: int, finish: int): void\n"
+  },
+  {
+    "name": "v21_task_free",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_free.apo:2:3: operation is not permitted inside a task: free\n"
+  },
+  {
+    "name": "v21_task_native",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_native.apo:3:5: operation is not permitted inside a task: ccall\n"
+  },
+  {
+    "name": "v21_task_clock",
+    "mode": "reject",
+    "compile_exit": 65,
+    "result": "pass-rejection",
+    "diagnostic": "/mnt/data/apo-2.1.5/tests/cases/v21_task_clock.apo:2:3: operation is not permitted inside a task: clock\n"
+  },
+  {
+    "name": "v21_f32_nan",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: non-finite floating result\n",
+    "instructions": 60,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_f32_overflow",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: non-finite floating result\n",
+    "instructions": 70,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_f32_width",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: value does not fit the selected unsigned memory width\n",
+    "instructions": 51,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_atomic_align",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 153,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_atomic_bounds",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer or string index out of bounds\n",
+    "instructions": 154,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_atomic_stale",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: buffer already freed or stale alias\n",
+    "instructions": 172,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_pool_count",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: assertion failed\n",
+    "instructions": 74,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_exact_preserved",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: result needs more than 6 decimal places\nHint: use float(a) / float(b) for approximate ratios.\n",
+    "instructions": 100,
+    "callback_checks": 0,
+    "result": "pass-model"
+  },
+  {
+    "name": "v21_process_nul",
+    "mode": "error",
+    "compile_exit": 0,
+    "exit": 70,
+    "stdout": "",
+    "stderr": "APO runtime error: assertion failed\n",
+    "instructions": 515,
+    "callback_checks": 0,
+    "result": "pass-model"
+  }
+]

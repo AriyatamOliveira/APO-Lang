@@ -1,0 +1,169 @@
+use process
+use filesystem
+
+# Run from the release root: ./apo run test.apo [-- --stress]
+fn test_contains(text: string,wanted: string): bool
+  n=int(len(wanted))
+  if n==0i then
+    return true
+  end
+  i=0i
+  while i+n<=int(len(text)) do
+    if slice(text,i,n)==wanted then
+      return true
+    end
+    i+=1i
+  end
+  return false
+end
+fn test_field(line: string,which: int): string
+  start=0i
+  field=0i
+  i=0i
+  while i<=int(len(line)) do
+    boundary=i==int(len(line))
+    if not boundary then
+      boundary=byte_at(line,i)==9i
+    end
+    if boundary then
+      if field==which then
+        return slice(line,start,i-start)
+      end
+      field+=1i
+      start=i+1i
+    end
+    i+=1i
+  end
+  return ""
+end
+fn test_integer(text: string): int
+  result=0i
+  i=0i
+  while i<int(len(text)) do
+    digit=byte_at(text,i)-48i
+    assert(digit>=0i and digit<=9i)
+    result=result*10i+digit
+    i+=1i
+  end
+  return result
+end
+fn test_failure(name: string,why: string): void
+  println "FAIL ",name,": ",why
+  println "See out/tests/latest.out and out/tests/latest.err."
+  exit 1i
+end
+fn test_case(name: string,mode: string,expected: int): void
+  stem=fs_join_owned("tests/cases/",name)
+  source=fs_join_owned(fs_text(stem),".apo")
+  request=process_new("./apo")
+  if mode=="reject" then
+    process_arg(request,"check")
+  else
+    process_arg(request,"build")
+  end
+  process_arg(request,fs_text(source))
+  if mode!="reject" then
+    process_arg(request,"-o")
+    process_arg(request,"out/tests/program")
+  end
+  status=process_capture(request,"out/tests/latest.out","out/tests/latest.err")
+  free(request)
+  free(source)
+  if mode=="reject" then
+    if status!=expected then
+      test_failure(name,"wrong compile rejection status")
+    end
+  else
+    if status!=0i then
+      test_failure(name,"compilation failed")
+    end
+    request=process_new("/usr/bin/codesign")
+    process_arg(request,"--verify")
+    process_arg(request,"--strict")
+    process_arg(request,"out/tests/program")
+    status=process_capture(request,"out/tests/latest.out","out/tests/latest.err")
+    free(request)
+    if status!=0i then
+      test_failure(name,"signature verification failed")
+    end
+    request=process_new("./out/tests/program")
+    status=process_capture(request,"out/tests/latest.out","out/tests/latest.err")
+    free(request)
+    if status!=expected then
+      test_failure(name,"wrong runtime exit status")
+    end
+    if mode=="error" then
+      errpath=fs_join_owned(fs_text(stem),".err")
+      wanted=fs_read(fs_text(errpath))
+      actual=fs_read("out/tests/latest.err")
+      needle=fs_text(wanted)
+      n=int(len(needle))
+      if n>0i and byte_at(needle,n-1i)==10i then
+        needle=slice(needle,0i,n-1i)
+      end
+      if not test_contains(fs_text(actual),needle) then
+        test_failure(name,"wrong runtime diagnostic")
+      end
+      free(wanted)
+      free(actual)
+      free(errpath)
+    else
+      outpath=fs_join_owned(fs_text(stem),".out")
+      if not fs_equal(fs_text(outpath),"out/tests/latest.out") then
+        test_failure(name,"stdout mismatch")
+      end
+      actual=fs_read("out/tests/latest.err")
+      if load64(actual,0i)!=0i then
+        test_failure(name,"unexpected stderr")
+      end
+      free(actual)
+      free(outpath)
+    end
+  end
+  free(stem)
+  println "PASS ",name
+end
+fn test_main(): void
+  if not fs_exists("./apo") or not fs_exists("tests/manifest.tsv") then
+    println "Run from the APO release directory after building ./apo."
+    exit 66i
+  end
+  stress=false
+  if argc()>1i then
+    if arg(1i)!="--stress" then
+      println "Usage: ./apo run test.apo -- --stress"
+      exit 64i
+    end
+    stress=true
+  end
+  fs_mkdir("out")
+  fs_mkdir("out/tests")
+  count=0i
+  for file in "tests/manifest.tsv" "tests/v2-manifest.tsv" "tests/v201-manifest.tsv" "tests/v215-manifest.tsv" "tests/v21-manifest.tsv"
+    data=fs_read(file)
+    text=fs_text(data)
+    start=0i
+    pos=0i
+    while pos<=int(len(text)) do
+      boundary=pos==int(len(text))
+      if not boundary then
+        boundary=byte_at(text,pos)==10i
+      end
+      if boundary then
+        if pos>start then
+          line=slice(text,start,pos-start)
+          if stress or test_field(line,3i)!="1" then
+            test_case(test_field(line,1i),test_field(line,0i),test_integer(test_field(line,2i)))
+            count+=1i
+          end
+        end
+        start=pos+1i
+      end
+      pos+=1i
+    end
+    free(data)
+  end
+  println "Passed ",count," native fixtures."
+  println "Metal/display check: ./apo run hypercube.apo -- 8 max"
+end
+test_main()

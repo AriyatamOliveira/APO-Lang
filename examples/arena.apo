@@ -1,0 +1,42 @@
+# A manually controlled aligned arena, implemented in APO.
+# This example uses explicit raw pointers: no lifetime tracking after reset/free.
+fn new_arena(size: int): buffer
+  assert(size >= 32i)
+  arena = alloc(size)
+  store64(arena, 0, 16i) # next available byte; first 16 bytes are metadata
+  return arena
+end
+fn arena_reserve(arena: buffer, bytes: int, alignment: int): pointer
+  assert(bytes > 0i)
+  assert(alignment > 0i and alignment <= 1048576i)
+  assert(band(alignment, alignment - 1i) = 0i)
+  unsafe
+    base = address_int(address(arena))
+    cursor = load64(arena, 0)
+    aligned = band(base + cursor + alignment - 1i, -alignment)
+    start = aligned - base
+    assert(start >= 16i and bytes <= int(len(arena)) - start)
+    store64(arena, 0, start + bytes)
+    return pointer(aligned)
+  end
+end
+fn arena_mark(arena: buffer): int
+  return load64(arena, 0)
+end
+fn arena_reset(arena: buffer, mark: int): void
+  assert(mark >= 16i and mark <= load64(arena, 0))
+  store64(arena, 0, mark)
+end
+
+arena = new_arena(65536i)
+mark = arena_mark(arena)
+values = arena_reserve(arena, 64i, 64i)
+unsafe
+  assert(band(address_int(values), 63i) = 0i)
+  poke64(values, 123456789012345i)
+  pokefloat(offset(values, 8i), float(0.125))
+  print: "64-byte alignment: true", \nl
+  print: peek64(values), " ", peekfloat(offset(values, 8i)), \nl
+end
+arena_reset(arena, mark) # all suballocations after mark are now logically invalid
+free(arena)             # releases the entire mapping; never dereference values again

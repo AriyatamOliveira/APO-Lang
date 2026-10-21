@@ -1,0 +1,9 @@
+for i in 1 2 3 4
+ if i=2 then
+ continue
+ end
+ if i=4 then
+ break
+ end
+ print i
+end

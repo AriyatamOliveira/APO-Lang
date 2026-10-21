@@ -1,0 +1,5 @@
+use "../../lib/memory.apo"
+b = alloc(1i)
+a = b
+b = resize(b, 2i)
+print: a[0i]

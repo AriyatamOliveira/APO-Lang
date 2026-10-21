@@ -1,0 +1,5776 @@
+# APO 2.1.5 self-hosted compiler. All pointers here refer to compiler-owned arenas.
+# This file deliberately uses low-level memory; user programs keep checked buffers.
+fn nil(): pointer
+  unsafe
+    return pointer(0i)
+  end
+end
+fn at(p: pointer, bytes: int): pointer
+  unsafe
+    return offset(p, bytes)
+  end
+end
+fn get(p: pointer, index: int): int
+  unsafe
+    return peek64(offset(p, index * 8i))
+  end
+end
+fn put(p: pointer, index: int, value: int): void
+  unsafe
+    poke64(offset(p, index * 8i), value)
+  end
+end
+fn getp(p: pointer, index: int): pointer
+  unsafe
+    return pointer(get(p, index))
+  end
+end
+fn putp(p: pointer, index: int, value: pointer): void
+  unsafe
+    put(p, index, address_int(value))
+  end
+end
+fn raw(bytes: int): pointer
+  b = alloc(bytes)
+  unsafe
+    return address(b)
+  end
+end
+fn getb(p: pointer, bytes: int): int
+  unsafe
+    return int(peek8(offset(p, bytes)))
+  end
+end
+fn setb(p: pointer, bytes: int, value: int): void
+  unsafe
+    poke8(offset(p, bytes), value)
+  end
+end
+fn gets(p: pointer, index: int): string
+  unsafe
+    return string_at(getp(p, index), get(p, index + 1i))
+  end
+end
+fn puts(p: pointer, index: int, value: string): void
+  unsafe
+    putp(p, index, address(value))
+  end
+  put(p, index + 1i, int(len(value)))
+end
+fn rawtext(p: pointer, length: int): string
+  unsafe
+    return string_at(p, length)
+  end
+end
+fn write_fd(fd: int, text: string): void
+  done = 0i
+  n = int(len(text))
+  unsafe
+    p = address(text)
+    while done < n do
+      r = syscall(4i, fd, offset(p, done), n - done, 0i, 0i, 0i)
+      if r = -4i then
+        continue
+      end
+      if r <= 0i then
+        exit 74i
+      end
+      done = done + r
+    end
+  end
+end
+fn strint(value: int): string
+  b = alloc(32i)
+  pos = 31i
+  negative = value < 0i
+  v = value
+  if v > 0i then
+    v = -v
+  end
+  while true do
+    digit = -(v % 10i)
+    b[pos] = 48i + digit
+    pos = pos - 1i
+    v = v / 10i
+    if v = 0i then
+      break
+    end
+  end
+  if negative then
+    b[pos] = 45i
+    pos = pos - 1i
+  end
+  unsafe
+    return view(b, pos + 1i, 31i - pos)
+  end
+end
+fn die(message: string, status: int): void
+  write_fd(2i, "apo: ")
+  write_fd(2i, message)
+  write_fd(2i, "\n")
+  exit status
+end
+fn need(ok: bool, message: string): void
+  if not ok then
+    die(message, 70i)
+  end
+end
+fn concat(a: string, b: string): string
+  n = int(len(a))
+  m = int(len(b))
+  if n + m > 16777216i then
+    die("combined text exceeds 16 MiB", 65i)
+  end
+  dest = alloc(n + m + 1i)
+  copy(dest, 0i, a, 0i, n)
+  copy(dest, n, b, 0i, m)
+  unsafe
+    return view(dest, 0i, n + m)
+  end
+end
+fn cstring(text: string): buffer
+  n = int(len(text))
+  if n > 4095i then
+    die("path exceeds 4095 bytes", 74i)
+  end
+  i = 0i
+  while i < n do
+    if byte_at(text, i) = 0i then
+      die("NUL bytes are not permitted in paths", 74i)
+    end
+    i = i + 1i
+  end
+  b = alloc(n + 1i)
+  copy(b, 0i, text, 0i, n)
+  return b
+end
+fn read_source(path: string): string
+  pathbuf = cstring(path)
+  unsafe
+    fd = syscall(5i, address(pathbuf), 0i, 0i, 0i, 0i, 0i)
+    free(pathbuf)
+    if fd < 0i then
+      write_fd(2i, concat(path, ": "))
+      die("cannot open source", 66i)
+    end
+    b = alloc(8388609i)
+    n = 0i
+    while n < 8388609i do
+      amount = syscall(3i, fd, offset(address(b), n), 8388609i - n, 0i, 0i, 0i)
+      if amount = -4i then
+        continue
+      end
+      if amount < 0i then
+        syscall(6i, fd, 0i, 0i, 0i, 0i, 0i)
+        die("cannot read source", 74i)
+      end
+      if amount = 0i then
+        break
+      end
+      n = n + amount
+    end
+    syscall(6i, fd, 0i, 0i, 0i, 0i, 0i)
+    if n > 8388608i then
+      die("source limit is 8 MiB", 65i)
+    end
+    begin = 0i
+    if n >= 3i and int(b[0i]) = 239i and int(b[1i]) = 187i and int(b[2i]) = 191i then
+      begin = 3i
+    end
+    compact = alloc(n - begin + 1i)
+    copy(compact, 0i, b, begin, n - begin)
+    free(b)
+    return view(compact, 0i, n - begin)
+  end
+end
+fn starts(text: string, prefix: string): bool
+  n = int(len(prefix))
+  if int(len(text)) < n then
+    return false
+  end
+  return slice(text, 0i, n) = prefix
+end
+fn ends(text: string, suffix: string): bool
+  n = int(len(suffix))
+  m = int(len(text))
+  if m < n then
+    return false
+  end
+  return slice(text, m - n, n) = suffix
+end
+fn apo_suffix(text: string): bool
+  n = int(len(text))
+  if n < 4i then
+    return false
+  end
+  return byte_at(text, n - 4i) = 46i and bor(byte_at(text, n - 3i), 32i) = 97i and bor(byte_at(text, n - 2i), 32i) = 112i and bor(byte_at(text, n - 1i), 32i) = 111i
+end
+fn parent_dirs(path: string): void
+  n = int(len(path))
+  i = 1i
+  while i < n do
+    if byte_at(path, i) = 47i then
+      name = cstring(slice(path, 0i, i))
+      unsafe
+        result = syscall(136i, address(name), 493i, 0i, 0i, 0i, 0i)
+        if result < 0i and result != -17i then
+          die("cannot create output directory", 74i)
+        end
+      end
+      free(name)
+    end
+    i = i + 1i
+  end
+end
+fn save_file(path: string, data: pointer, length: int, executable: bool): void
+  parent_dirs(path)
+  unsafe
+    pid = syscall(20i, 0i, 0i, 0i, 0i, 0i, 0i)
+    temp = concat(path, concat(".apo-tmp-", strint(pid)))
+    tempbuf = cstring(temp)
+    finalbuf = cstring(path)
+    # O_WRONLY | O_CREAT | O_EXCL: never follow or truncate a pre-existing temp.
+    fd = syscall(5i, address(tempbuf), 2561i, 384i, 0i, 0i, 0i)
+    if fd < 0i then
+      die("cannot create temporary output (check permissions or stale .apo-tmp file)", 74i)
+    end
+    written = 0i
+    while written < length do
+      r = syscall(4i, fd, offset(data, written), length - written, 0i, 0i, 0i)
+      if r = -4i then
+        continue
+      end
+      if r <= 0i then
+        syscall(6i, fd, 0i, 0i, 0i, 0i, 0i)
+        syscall(10i, address(tempbuf), 0i, 0i, 0i, 0i, 0i)
+        die("writing output failed", 74i)
+      end
+      written = written + r
+    end
+    mode = 420i
+    if executable then
+      mode = 493i
+    end
+    r = syscall(124i, fd, mode, 0i, 0i, 0i, 0i)
+    closed = syscall(6i, fd, 0i, 0i, 0i, 0i, 0i)
+    if r < 0i or closed < 0i then
+      syscall(10i, address(tempbuf), 0i, 0i, 0i, 0i, 0i)
+      die("closing output failed", 74i)
+    end
+    if syscall(128i, address(tempbuf), address(finalbuf), 0i, 0i, 0i, 0i) < 0i then
+      syscall(10i, address(tempbuf), 0i, 0i, 0i, 0i, 0i)
+      die("cannot replace output", 74i)
+    end
+    free(tempbuf)
+    free(finalbuf)
+  end
+end
+# Parser/generator arenas use [base, capacity, used] at fields 0..2.
+fn arena(context: pointer, bytes: int): pointer
+  size = band(bytes + 15i, -16i)
+  used = get(context, 2i)
+  if size < 0i or used > get(context, 1i) - size then
+    die("compiler arena exhausted (source is too complex)", 65i)
+  end
+  put(context, 2i, used + size)
+  return at(getp(context, 0i), used)
+end
+fn new_arena(size: int, context_bytes: int): pointer
+  c = raw(context_bytes)
+  putp(c, 0i, raw(size))
+  put(c, 1i, size)
+  return c
+end
+fn fail(p: pointer, token: pointer, message: string): void
+  filename = gets(p, 19i)
+  if getp(token, 7i) != nil() then
+    filename = gets(getp(token, 7i), 0i)
+  end
+  write_fd(2i, filename)
+  write_fd(2i, ":")
+  write_fd(2i, strint(get(token, 3i)))
+  write_fd(2i, ":")
+  write_fd(2i, strint(get(token, 4i)))
+  write_fd(2i, ": ")
+  write_fd(2i, message)
+  write_fd(2i, "\n")
+  exit 65i
+end
+# Lists have an O(1) append header [head,tail,count]; nodes [value,next].
+fn list_add(p: pointer, list: pointer, value: pointer): pointer
+  head = list
+  if head = nil() then
+    head = arena(p, 32i)
+  end
+  item = arena(p, 16i)
+  putp(item, 0i, value)
+  if getp(head, 0i) = nil() then
+    putp(head, 0i, item)
+  else
+    putp(getp(head, 1i), 1i, item)
+  end
+  putp(head, 1i, item)
+  put(head, 2i, get(head, 2i) + 1i)
+  return head
+end
+fn list_get(list: pointer, index: int): pointer
+  need(list != nil(), "internal list index")
+  need(index >= 0i and index < get(list, 2i), "internal list index")
+  it = getp(list, 0i)
+  i = 0i
+  while i < index do
+    it = getp(it, 1i)
+    i = i + 1i
+  end
+  return getp(it, 0i)
+end
+fn minint(a: int, b: int): int
+  if a < b then
+    return a
+  end
+  return b
+end
+fn maxint(a: int, b: int): int
+  if a > b then
+    return a
+  end
+  return b
+end
+# Token layout: kind,text pointer,text length,line,column,begin,end,reserved.
+fn isdigit(c: int): bool
+  return c >= 48i and c <= 57i
+end
+fn isletter(c: int): bool
+  return (c >= 65i and c <= 90i) or (c >= 97i and c <= 122i) or c = 95i
+end
+fn isident(c: int): bool
+  return isletter(c) or isdigit(c)
+end
+fn hexval(c: int): int
+  if isdigit(c) then
+    return c - 48i
+  end
+  if c >= 65i and c <= 70i then
+    return c - 55i
+  end
+  if c >= 97i and c <= 102i then
+    return c - 87i
+  end
+  return -1i
+end
+fn source_byte(s: string, index: int): int
+  if index < 0i or index >= int(len(s)) then
+    return -1i
+  end
+  return byte_at(s, index)
+end
+fn keyword(s: string): int
+  if s = "task" then
+    return 57i
+  end
+  if s = "elif" then
+    return 54i
+  end
+  if s = "println" then
+    return 55i
+  end
+  if s = "set" then
+    return 56i
+  end
+  if s = "let" then
+    return 44i
+  end
+  if s = "const" then
+    return 45i
+  end
+  if s = "print" then
+    return 24i
+  end
+  if s = "if" then
+    return 25i
+  end
+  if s = "then" then
+    return 26i
+  end
+  if s = "else" then
+    return 27i
+  end
+  if s = "end" then
+    return 28i
+  end
+  if s = "for" then
+    return 29i
+  end
+  if s = "in" then
+    return 30i
+  end
+  if s = "while" then
+    return 31i
+  end
+  if s = "do" then
+    return 32i
+  end
+  if s = "exit" then
+    return 33i
+  end
+  if s = "true" then
+    return 34i
+  end
+  if s = "false" then
+    return 35i
+  end
+  if s = "and" then
+    return 36i
+  end
+  if s = "or" then
+    return 37i
+  end
+  if s = "not" then
+    return 38i
+  end
+  if s = "fn" then
+    return 39i
+  end
+  if s = "return" then
+    return 40i
+  end
+  if s = "unsafe" then
+    return 41i
+  end
+  if s = "break" then
+    return 42i
+  end
+  if s = "continue" then
+    return 43i
+  end
+  return 2i
+end
+fn token_add(p: pointer, kind: int, text: string, line: int, column: int, begin: int, finish: int): pointer
+  count = get(p, 4i)
+  if count >= 262144i then
+    die("source exceeds 262144-token limit", 65i)
+  end
+  t = at(getp(p, 3i), count * 64i)
+  put(t, 0i, kind)
+  puts(t, 1i, text)
+  put(t, 3i, line)
+  put(t, 4i, column)
+  put(t, 5i, begin)
+  put(t, 6i, finish)
+  putp(t, 7i, getp(p, 25i))
+  put(p, 4i, count + 1i)
+  return t
+end
+fn lex_error(p: pointer, line: int, column: int, message: string): void
+  t = arena(p, 64i)
+  putp(t, 7i, getp(p, 25i))
+  put(t, 3i, line)
+  put(t, 4i, column)
+  fail(p, t, message)
+end
+fn decode_string(p: pointer, s: string, line: int, column: int): string
+  n = int(len(s))
+  dest = arena(p, n + 1i)
+  i = 0i
+  out = 0i
+  while i < n do
+    c = byte_at(s, i)
+    i = i + 1i
+    if c = 92i then
+      if i >= n then
+        lex_error(p, line, column, "incomplete escape")
+      end
+      esc = byte_at(s, i)
+      i = i + 1i
+      if esc = 110i then
+        c = 10i
+      else
+        if esc = 114i then
+          c = 13i
+        else
+          if esc = 116i then
+            c = 9i
+          else
+            if esc = 101i then
+              c = 27i
+            else
+              if esc = 48i then
+                c = 0i
+              else
+                if esc = 34i or esc = 92i then
+                  c = esc
+                else
+                  lex_error(p, line, column, "unknown string escape")
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+    setb(dest, out, c)
+    out = out + 1i
+  end
+  return rawtext(dest, out)
+end
+fn lex(p: pointer, source: string): void
+  putp(p, 3i, raw(16777216i))
+  n = int(len(source))
+  i = 0i
+  line = 1i
+  column = 1i
+  delimiters = alloc(256i)
+  nesting = 0i
+  while i < n do
+    c = byte_at(source, i)
+    if c = 32i or c = 9i or c = 11i or c = 12i then
+      i = i + 1i
+      column = column + 1i
+      continue
+    end
+    if c = 35i and column = 1i and i + 11i <= n and slice(source, i, 11i) = "#@apo-file:" then
+      j = i + 11i
+      requested_line = 0i
+      while isdigit(source_byte(source, j)) do
+        if requested_line > 10000000i then
+          lex_error(p, line, column, "source map line is too large")
+        end
+        requested_line = requested_line * 10i + source_byte(source, j) - 48i
+        j = j + 1i
+      end
+      if source_byte(source, j) != 58i or requested_line < 1i then
+        lex_error(p, line, column, "invalid source marker")
+      end
+      j = j + 1i
+      start = j
+      while j < n and source_byte(source, j) != 10i and source_byte(source, j) != 13i do
+        j = j + 1i
+      end
+      file_info = arena(p, 16i)
+      puts(file_info, 0i, slice(source, start, j - start))
+      putp(p, 25i, file_info)
+      line = requested_line - 1i
+    end
+    if c = 35i or (c = 47i and source_byte(source, i + 1i) = 47i) then
+      while i < n and source_byte(source, i) != 10i and source_byte(source, i) != 13i do
+        i = i + 1i
+        column = column + 1i
+      end
+      continue
+    end
+    begin = i
+    col = column
+    if c = 10i or c = 13i then
+      i = i + 1i
+      if c = 13i and source_byte(source, i) = 10i then
+        i = i + 1i
+      end
+      if nesting = 0i then
+        token_add(p, 1i, "newline", line, col, begin, i)
+      end
+      line = line + 1i
+      column = 1i
+      continue
+    end
+    if isletter(c) then
+      i = i + 1i
+      while isident(source_byte(source, i)) do
+        i = i + 1i
+      end
+      text = slice(source, begin, i - begin)
+      token_add(p, keyword(text), text, line, col, begin, i)
+      column = column + i - begin
+      continue
+    end
+    if isdigit(c) then
+      kind = 3i
+      if c = 48i and (source_byte(source, i + 1i) = 120i or source_byte(source, i + 1i) = 88i) then
+        kind = 17i
+        i = i + 2i
+        digits = i
+        while hexval(source_byte(source, i)) >= 0i do
+          i = i + 1i
+        end
+        if i = digits then
+          lex_error(p, line, col, "hex literal requires digits")
+        end
+      else
+        while isdigit(source_byte(source, i)) do
+          i = i + 1i
+        end
+        dotted = false
+        if source_byte(source, i) = 46i then
+          dotted = true
+          i = i + 1i
+          if not isdigit(source_byte(source, i)) then
+            lex_error(p, line, col, "decimal point must be followed by digits")
+          end
+          while isdigit(source_byte(source, i)) do
+            i = i + 1i
+          end
+        end
+        if source_byte(source, i) = 102i then
+          kind = 46i
+          i = i + 1i
+        end
+        if kind != 46i and not dotted and source_byte(source, i) = 105i then
+          kind = 17i
+          i = i + 1i
+        end
+      end
+      if isident(source_byte(source, i)) then
+        lex_error(p, line, col, "invalid numeric suffix; exponent notation is not supported")
+      end
+      token_add(p, kind, slice(source, begin, i - begin), line, col, begin, i)
+      column = column + i - begin
+      continue
+    end
+    if c = 34i then
+      i = i + 1i
+      start = i
+      closed = false
+      while i < n do
+        ch = byte_at(source, i)
+        if ch = 10i or ch = 13i then
+          lex_error(p, line, col, "use \\n instead of a raw newline inside a string")
+        end
+        if ch = 34i then
+          closed = true
+          break
+        end
+        if ch = 92i then
+          i = i + 1i
+          if i >= n or source_byte(source, i) = 10i or source_byte(source, i) = 13i then
+            lex_error(p, line, col, "incomplete string escape")
+          end
+        end
+        i = i + 1i
+      end
+      if not closed then
+        lex_error(p, line, col, "unterminated string")
+      end
+      text = decode_string(p, slice(source, start, i - start), line, col)
+      i = i + 1i
+      token_add(p, 4i, text, line, col, begin, i)
+      column = column + i - begin
+      continue
+    end
+    if c = 92i then
+      if source_byte(source, i + 1i) != 110i or source_byte(source, i + 2i) != 108i or isident(source_byte(source, i + 3i)) then
+        lex_error(p, line, col, "outside strings only \\nl is supported")
+      end
+      i = i + 3i
+      token_add(p, 5i, "\n", line, col, begin, i)
+      column = column + 3i
+      continue
+    end
+    i = i + 1i
+    kind = -1i
+    if c = 40i then
+      kind = 6i
+    end
+    if c = 41i then
+      kind = 7i
+    end
+    if c = 91i then
+      kind = 8i
+    end
+    if c = 93i then
+      kind = 9i
+    end
+    if c = 44i then
+      kind = 10i
+    end
+    if c = 58i then
+      kind = 11i
+    end
+    if c = 43i then
+      kind = 12i
+    end
+    if c = 45i then
+      kind = 13i
+    end
+    if c = 42i then
+      kind = 14i
+    end
+    if c = 47i then
+      kind = 15i
+    end
+    if c = 37i then
+      kind = 16i
+    end
+    if c = 61i then
+      kind = 18i
+      if source_byte(source, i) = 61i then
+        kind = 53i
+        i = i + 1i
+      end
+    end
+    if c = 33i and source_byte(source, i) = 61i then
+      kind = 19i
+      i = i + 1i
+    end
+    if c = 60i then
+      kind = 20i
+      if source_byte(source, i) = 61i then
+        kind = 21i
+        i = i + 1i
+      end
+    end
+    if c = 62i then
+      kind = 22i
+      if source_byte(source, i) = 61i then
+        kind = 23i
+        i = i + 1i
+      end
+    end
+    if kind >= 12i and kind <= 16i and source_byte(source, i) = 61i then
+      kind = kind + 35i
+      i = i + 1i
+    end
+    if kind < 0i then
+      lex_error(p, line, col, "unexpected source character")
+    end
+    if kind = 6i or kind = 8i then
+      if nesting >= 256i then
+        lex_error(p, line, col, "delimiter nesting exceeds 256")
+      end
+      delimiters[nesting] = kind
+      nesting = nesting + 1i
+    end
+    if kind = 7i or kind = 9i then
+      if nesting = 0i or int(delimiters[nesting - 1i]) + 1i != kind then
+        lex_error(p, line, col, "mismatched closing delimiter")
+      end
+      nesting = nesting - 1i
+    end
+    token_add(p, kind, slice(source, begin, i - begin), line, col, begin, i)
+    column = column + i - begin
+  end
+  if nesting != 0i then
+    lex_error(p, line, column, "unclosed parenthesis or bracket")
+  end
+  free(delimiters)
+  token_add(p, 0i, "end of file", line, column, n, n)
+end
+fn peek(p: pointer): pointer
+  pos = get(p, 5i)
+  need(pos >= 0i and pos < get(p, 4i), "internal token index")
+  return at(getp(p, 3i), pos * 64i)
+end
+fn kind(p: pointer): int
+  return get(peek(p), 0i)
+end
+fn take(p: pointer): pointer
+  t = peek(p)
+  if get(t, 0i) != 0i then
+    put(p, 5i, get(p, 5i) + 1i)
+  end
+  return t
+end
+fn accept(p: pointer, code: int): bool
+  if kind(p) != code then
+    return false
+  end
+  take(p)
+  return true
+end
+fn expect(p: pointer, code: int, message: string): pointer
+  if kind(p) != code then
+    fail(p, peek(p), message)
+  end
+  return take(p)
+end
+fn skip_lines(p: pointer): void
+  while accept(p, 1i) do
+  end
+end
+fn finish_line(p: pointer): void
+  if not accept(p, 1i) and kind(p) != 0i then
+    fail(p, peek(p), "expected a newline after the statement")
+  end
+end
+# Signature table: return, effect (- ordinary; ! unsafe; t timer), argument classes.
+fn builtin_spec(name: string): string
+  if name = "float32_bits" then
+    return "I-F"
+  end
+  if name = "float32_from_bits" then
+    return "F-I"
+  end
+  if name = "atomic_load" then
+    return "I-BI"
+  end
+  if name = "atomic_store" then
+    return "V-BII"
+  end
+  if name = "atomic_add" then
+    return "I-BII"
+  end
+  if name = "_parallel" then
+    return "V!PBIIPP"
+  end
+  if name = "dlopen" then
+    return "P!PI"
+  end
+  if name = "dlsym" then
+    return "P!PP"
+  end
+  if name = "ccall" then
+    return "I!*"
+  end
+  if name = "ccallp" then
+    return "P!*"
+  end
+  if name = "ccallf" or name = "ccallf1" or name = "ccallf2" or name = "ccallf3" then
+    return "F!*"
+  end
+  if name = "ccallv" then
+    return "V!*"
+  end
+  if name = "argc" then
+    return "I-"
+  end
+  if name = "arg" then
+    return "S-I"
+  end
+  if name = "envp" then
+    return "P!"
+  end
+  if name = "clock" then
+    return "Nt"
+  end
+  if name = "sleep" then
+    return "VtN"
+  end
+  if name = "sleep_until" then
+    return "VtN"
+  end
+  if name = "int" then
+    return "I-C"
+  end
+  if name = "number" then
+    return "N-R"
+  end
+  if name = "float" then
+    return "F-C"
+  end
+  if name = "float_bits" then
+    return "I-F"
+  end
+  if name = "float_from_bits" then
+    return "F!I"
+  end
+  if name = "sqrt" then
+    return "F-F"
+  end
+  if name = "trunc" then
+    return "I-F"
+  end
+  if name = "floor" then
+    return "X-D"
+  end
+  if name = "ceil" then
+    return "X-D"
+  end
+  if name = "abs" then
+    return "X-C"
+  end
+  if name = "alloc" then
+    return "B-R"
+  end
+  if name = "free" then
+    return "V-B"
+  end
+  if name = "len" then
+    return "N-T"
+  end
+  if name = "fill_range" or name = "fill32_range" then
+    return "V-BRRR"
+  end
+  if name = "fill64_range" then
+    return "V-BRRI"
+  end
+  if name = "fill32" then
+    return "V-BR"
+  end
+  if name = "fill64" then
+    return "V-BI"
+  end
+  if name = "fill" then
+    return "V-BR"
+  end
+  if name = "write_bytes" then
+    return "V-BRR"
+  end
+  if name = "char_at" then
+    return "S-SR"
+  end
+  if name = "byte_at" then
+    return "I-SR"
+  end
+  if name = "slice" then
+    return "S-SRR"
+  end
+  if name = "view" then
+    return "S!BRR"
+  end
+  if name = "string_at" then
+    return "S!PR"
+  end
+  if name = "copy" then
+    return "V-BRTRR"
+  end
+  if name = "address" then
+    return "P!T"
+  end
+  if name = "pointer" then
+    return "P!I"
+  end
+  if name = "address_int" then
+    return "I!P"
+  end
+  if name = "offset" then
+    return "P!PR"
+  end
+  if name = "band" then
+    return "I-II"
+  end
+  if name = "bor" then
+    return "I-II"
+  end
+  if name = "bxor" then
+    return "I-II"
+  end
+  if name = "bnot" then
+    return "I-I"
+  end
+  if name = "shl" then
+    return "I-II"
+  end
+  if name = "shr" then
+    return "I-II"
+  end
+  if name = "sar" then
+    return "I-II"
+  end
+  if name = "assert" then
+    return "V-O"
+  end
+  if name = "syscall" then
+    return "I!IQQQQQQ"
+  end
+  if name = "asm32" then
+    return "I!*"
+  end
+  if name = "_raster_line" then
+    return "V-BFFFFFFII"
+  end
+  if name = "load8" then
+    return "N-BR"
+  end
+  if name = "store8" then
+    return "V-BRR"
+  end
+  if name = "peek8" then
+    return "N!P"
+  end
+  if name = "poke8" then
+    return "V!PR"
+  end
+  if name = "load16" then
+    return "N-BR"
+  end
+  if name = "store16" then
+    return "V-BRR"
+  end
+  if name = "peek16" then
+    return "N!P"
+  end
+  if name = "poke16" then
+    return "V!PR"
+  end
+  if name = "load32" then
+    return "N-BR"
+  end
+  if name = "store32" then
+    return "V-BRR"
+  end
+  if name = "peek32" then
+    return "N!P"
+  end
+  if name = "poke32" then
+    return "V!PR"
+  end
+  if name = "load64" then
+    return "I-BR"
+  end
+  if name = "store64" then
+    return "V-BRI"
+  end
+  if name = "peek64" then
+    return "I!P"
+  end
+  if name = "poke64" then
+    return "V!PI"
+  end
+  if name = "loadnum" then
+    return "N-BR"
+  end
+  if name = "storenum" then
+    return "V-BRN"
+  end
+  if name = "peeknum" then
+    return "N!P"
+  end
+  if name = "pokenum" then
+    return "V!PN"
+  end
+  if name = "loadfloat" then
+    return "F-BR"
+  end
+  if name = "storefloat" then
+    return "V-BRF"
+  end
+  if name = "peekfloat" then
+    return "F!P"
+  end
+  if name = "pokefloat" then
+    return "V!PF"
+  end
+  return ""
+end
+# Type IDs: number=0 string=1 bool=2 int=3 buffer=4 pointer=5 void=6 float=7.
+fn typecode(name: string, allow_void: bool): int
+  if name = "number" or name = "num" then
+    return 0i
+  end
+  if name = "string" then
+    return 1i
+  end
+  if name = "bool" then
+    return 2i
+  end
+  if name = "int" then
+    return 3i
+  end
+  if name = "buffer" then
+    return 4i
+  end
+  if name = "pointer" or name = "ptr" then
+    return 5i
+  end
+  if name = "void" and allow_void then
+    return 6i
+  end
+  if name = "float" or name = "f64" then
+    return 7i
+  end
+  return -1i
+end
+fn read_type(p: pointer, allow_void: bool): int
+  t = expect(p, 2i, "expected a type name")
+  code = typecode(gets(t, 1i), allow_void)
+  if code < 0i then
+    fail(p, t, "unknown or disallowed type")
+  end
+  return code
+end
+fn numeric(t: int): bool
+  return t = 0i or t = 3i or t = 7i
+end
+fn push_scope(p: pointer): void
+  scope = arena(p, 32i)
+  putp(scope, 1i, getp(p, 6i))
+  putp(p, 6i, scope)
+end
+fn pop_scope(p: pointer): void
+  putp(p, 6i, getp(getp(p, 6i), 1i))
+end
+fn binding(p: pointer, name: string): pointer
+  scope = getp(p, 6i)
+  while scope != nil() do
+    item = getp(scope, 0i)
+    while item != nil() do
+      if gets(item, 0i) = name then
+        return item
+      end
+      item = getp(item, 4i)
+    end
+    scope = getp(scope, 1i)
+  end
+  return nil()
+end
+fn bind_name(p: pointer, name: string, datatype: int, slot: int): void
+  scope = getp(p, 6i)
+  item = arena(p, 64i)
+  puts(item, 0i, name)
+  put(item, 2i, datatype)
+  put(item, 3i, slot)
+  putp(item, 4i, getp(scope, 0i))
+  putp(scope, 0i, item)
+end
+fn slots(p: pointer, count: int, t: pointer): int
+  start = get(p, 7i)
+  if count < 0i or count > 2048i - start then
+    fail(p, t, "stack frame exceeds 2048 local slots")
+  end
+  put(p, 7i, start + count)
+  return start
+end
+fn name_bucket(name: string): int
+  h = 0i
+  i = 0i
+  while i < int(len(name)) do
+    h = band(h * 33i + byte_at(name, i), 1023i)
+    i = i + 1i
+  end
+  return h
+end
+fn function_named(p: pointer, name: string): pointer
+  f = getp(getp(p, 26i), name_bucket(name))
+  while f != nil() do
+    if gets(f, 0i) = name then
+      return f
+    end
+    f = getp(f, 10i)
+  end
+  return nil()
+end
+fn leaf(p: pointer, k: int, datatype: int, tok: pointer): pointer
+  e = arena(p, 128i)
+  put(e, 0i, k)
+  put(e, 1i, datatype)
+  putp(e, 2i, tok)
+  puts(e, 4i, gets(tok, 1i))
+  put(e, 11i, 1i)
+  return e
+end
+fn remember(p: pointer, e: pointer): pointer
+  depth = 1i
+  if getp(e, 7i) != nil() then
+    depth = maxint(depth, get(getp(e, 7i), 11i) + 1i)
+  end
+  if getp(e, 8i) != nil() then
+    depth = maxint(depth, get(getp(e, 8i), 11i) + 1i)
+  end
+  list = getp(e, 9i)
+  if list != nil() then
+    item = getp(list, 0i)
+    while item != nil() do
+      depth = maxint(depth, get(getp(item, 0i), 11i) + 1i)
+      item = getp(item, 1i)
+    end
+  end
+  if depth > 128i then
+    fail(p, getp(e, 2i), "expression tree exceeds depth 128")
+  end
+  put(e, 11i, depth)
+  return e
+end
+fn require_type(p: pointer, e: pointer, datatype: int): void
+  if get(e, 1i) != datatype then
+    fail(p, getp(e, 2i), "type mismatch (conversions must be explicit)")
+  end
+end
+fn literal(p: pointer, tok: pointer, negative: bool): pointer
+  text = gets(tok, 1i)
+  n = int(len(text))
+  if get(tok, 0i) = 46i then
+    v = float(0)
+    divisor = float(1)
+    fractional = false
+    i = 0i
+    digits = 0i
+    while i < n - 1i do
+      ch = byte_at(text, i)
+      if ch = 46i then
+        fractional = true
+      else
+        digits = digits + 1i
+        if digits > 17i then
+          fail(p, tok, "float literal exceeds 17 digits; use explicit arithmetic")
+        end
+        v = v * float(10) + float(ch - 48i)
+        if fractional then
+          divisor = divisor * float(10)
+        end
+      end
+      i = i + 1i
+    end
+    v = v / divisor
+    if negative then
+      v = -v
+    end
+    e = leaf(p, 0i, 7i, tok)
+    put(e, 3i, float_bits(v))
+    return e
+  end
+  isint = get(tok, 0i) = 17i
+  result_type = 0i
+  if isint then
+    result_type = 3i
+  end
+  e = leaf(p, 0i, result_type, tok)
+  if starts(text, "0x") or starts(text, "0X") then
+    v = 0i
+    i = 2i
+    while i < n do
+      digit = hexval(byte_at(text, i))
+      if digit < 0i or shr(v, 60i) != 0i then
+        fail(p, tok, "hex literal exceeds 64 bits")
+      end
+      v = bor(shl(v, 4i), digit)
+      i = i + 1i
+    end
+    if negative then
+      if v < 0i then
+        fail(p, tok, "cannot negate a high-bit hex literal")
+      end
+      v = -v
+    end
+    put(e, 3i, v)
+    return e
+  end
+  if isint then
+    n = n - 1i
+  end
+  # Accumulate negatively: INT64_MIN is representable without overflowing.
+  limit = -9223372036854775807i
+  if negative then
+    limit = -9223372036854775808i
+  end
+  q = limit / 10i
+  last = -(limit % 10i)
+  v = 0i
+  frac = -1i
+  i = 0i
+  while i < n do
+    ch = byte_at(text, i)
+    i = i + 1i
+    if ch = 46i then
+      frac = 0i
+      continue
+    end
+    d = ch - 48i
+    if d < 0i or d > 9i then
+      fail(p, tok, "invalid number literal")
+    end
+    if v < q or (v = q and d > last) then
+      fail(p, tok, "numeric literal out of range")
+    end
+    v = v * 10i - d
+    if frac >= 0i then
+      frac = frac + 1i
+      if frac > 6i then
+        fail(p, tok, "number literals allow at most 6 decimal places")
+      end
+    end
+  end
+  if not isint then
+    if frac < 0i then
+      frac = 0i
+    end
+    while frac < 6i do
+      if v < q then
+        fail(p, tok, "numeric literal out of range")
+      end
+      v = v * 10i
+      frac = frac + 1i
+    end
+  end
+  if not negative then
+    v = -v
+  end
+  put(e, 3i, v)
+  return e
+end
+fn class_matches(code: int, datatype: int): bool
+  if code = 78i then
+    return datatype = 0i
+  end
+  if code = 83i then
+    return datatype = 1i
+  end
+  if code = 79i then
+    return datatype = 2i
+  end
+  if code = 73i then
+    return datatype = 3i
+  end
+  if code = 66i then
+    return datatype = 4i
+  end
+  if code = 80i then
+    return datatype = 5i
+  end
+  if code = 70i then
+    return datatype = 7i
+  end
+  if code = 82i then
+    return datatype = 0i or datatype = 3i
+  end
+  if code = 84i then
+    return datatype = 1i or datatype = 4i
+  end
+  if code = 81i then
+    return datatype = 3i or datatype = 5i
+  end
+  if code = 67i then
+    return numeric(datatype)
+  end
+  if code = 68i then
+    return datatype = 0i or datatype = 7i
+  end
+  return false
+end
+fn signature_result(code: int): int
+  if code = 78i then
+    return 0i
+  end
+  if code = 83i then
+    return 1i
+  end
+  if code = 79i then
+    return 2i
+  end
+  if code = 73i then
+    return 3i
+  end
+  if code = 66i then
+    return 4i
+  end
+  if code = 80i then
+    return 5i
+  end
+  if code = 86i then
+    return 6i
+  end
+  if code = 70i then
+    return 7i
+  end
+  return -1i
+end
+fn task_builtin_allowed(name: string): bool
+  if starts(name, "load") or starts(name, "store") or starts(name, "peek") or starts(name, "poke") or starts(name, "atomic_") then
+    return true
+  end
+  for allowed in "int" "number" "float" "float_bits" "float_from_bits" "float32_bits" "float32_from_bits" "sqrt" "trunc" "floor" "ceil" "abs" "len" "char_at" "byte_at" "slice" "view" "string_at" "copy" "fill" "fill32" "fill64" "fill_range" "fill32_range" "fill64_range" "address" "pointer" "address_int" "offset" "band" "bor" "bxor" "bnot" "shl" "shr" "sar" "assert" "asm32"
+    if name = allowed then
+      return true
+    end
+  end
+  return false
+end
+
+fn call_node(p: pointer, tok: pointer, name: string, args: pointer, count: int): pointer
+  e = leaf(p, 6i, 6i, tok)
+  puts(e, 4i, name)
+  putp(e, 9i, args)
+  put(e, 10i, count)
+  spec = builtin_spec(name)
+  if spec != "" then
+    if get(p, 27i) != 0i and not task_builtin_allowed(name) then
+      fail(p, tok, concat("operation is not permitted inside a task: ", name))
+    end
+    if byte_at(spec, 1i) = 33i and get(p, 13i) = 0i then
+      fail(p, tok, "this operation requires unsafe ... end")
+    end
+    if byte_at(spec, 1i) = 116i then
+      put(p, 12i, 1i)
+    end
+    if starts(name, "ccall") then
+      if count < 1i or count > 16i then
+        fail(p, tok, "ccall requires a function pointer and up to 15 arguments")
+      end
+      require_type(p, list_get(args, 0i), 5i)
+      gp = 0i
+      fp = 0i
+      j = 1i
+      while j < count do
+        t = get(list_get(args, j), 1i)
+        if t = 7i then
+          fp = fp + 1i
+        else
+          if t != 3i and t != 5i then
+            fail(p, tok, "C ABI arguments must be int, pointer, or float")
+          end
+          gp = gp + 1i
+        end
+        j = j + 1i
+      end
+      if gp > 8i or fp > 8i then
+        fail(p, tok, "ccall supports at most eight integer and eight FP argument registers; no stack arguments")
+      end
+    else
+    if name = "asm32" then
+      if count < 1i or count > 7i then
+        fail(p, tok, "asm32 requires an opcode and up to six registers")
+      end
+      op = list_get(args, 0i)
+      if get(op, 0i) != 0i or get(op, 1i) != 3i or get(op, 3i) < 0i or get(op, 3i) > 4294967295i then
+        fail(p, tok, "asm32 opcode must be a 32-bit integer literal")
+      end
+      j = 1i
+      while j < count do
+        t = get(list_get(args, j), 1i)
+        if t != 3i and t != 5i then
+          fail(p, tok, "asm32 register inputs must be int or pointer")
+        end
+        j = j + 1i
+      end
+    else
+      if count != int(len(spec)) - 2i then
+        fail(p, tok, "wrong number of built-in arguments")
+      end
+      i = 0i
+      while i < count do
+        if not class_matches(byte_at(spec, i + 2i), get(list_get(args, i), 1i)) then
+          fail(p, tok, "invalid built-in argument type")
+        end
+        i = i + 1i
+      end
+    end
+    end
+    result_type = signature_result(byte_at(spec, 0i))
+    if byte_at(spec, 0i) = 88i then
+      result_type = get(list_get(args, 0i), 1i)
+    end
+    need(result_type >= 0i, "internal builtin signature")
+    put(e, 1i, result_type)
+  else
+    f = function_named(p, name)
+    if f = nil() then
+      fail(p, tok, "unknown function; define it before use")
+    end
+    if get(p, 27i) != 0i and get(f, 11i) != 1i then
+      fail(p, tok, "tasks can call only task functions, not ordinary functions")
+    end
+    if count != get(f, 5i) then
+      fail(p, tok, "wrong number of function arguments")
+    end
+    i = 0i
+    while i < count do
+      require_type(p, list_get(args, i), get(list_get(getp(f, 4i), i), 2i))
+      i = i + 1i
+    end
+    putp(e, 12i, f)
+    put(e, 1i, get(f, 3i))
+  end
+  return remember(p, e)
+end
+fn unary_node(p: pointer, tok: pointer, operand: pointer): pointer
+  t = get(operand, 1i)
+  if get(tok, 0i) = 38i then
+    require_type(p, operand, 2i)
+    t = 2i
+  else
+    if not numeric(t) then
+      fail(p, tok, "unary sign requires a numeric value")
+    end
+  end
+  e = leaf(p, 4i, t, tok)
+  putp(e, 7i, operand)
+  return remember(p, e)
+end
+fn binary_node(p: pointer, tok: pointer, left: pointer, right: pointer): pointer
+  t = get(left, 1i)
+  k = get(tok, 0i)
+  if k = 36i or k = 37i then
+    require_type(p, left, 2i)
+    require_type(p, right, 2i)
+    t = 2i
+  else
+    require_type(p, right, t)
+    if k = 18i or k = 19i or k = 53i then
+      if t = 4i or t = 6i then
+        fail(p, tok, "buffer and void values cannot be compared")
+      end
+      t = 2i
+    else
+      if not numeric(t) then
+        fail(p, tok, "operator requires matching numeric types")
+      end
+      if k = 16i and t = 7i then
+        fail(p, tok, "floating remainder is not supported")
+      end
+      if k >= 20i and k <= 23i then
+        t = 2i
+      end
+    end
+  end
+  e = leaf(p, 5i, t, tok)
+  if k = 53i then
+    puts(e, 4i, "=")
+  end
+  putp(e, 7i, left)
+  putp(e, 8i, right)
+  return remember(p, e)
+end
+fn precedence(k: int): int
+  if k = 37i then
+    return 10i
+  end
+  if k = 36i then
+    return 20i
+  end
+  if k = 18i or k = 19i or k = 53i then
+    return 40i
+  end
+  if k >= 20i and k <= 23i then
+    return 50i
+  end
+  if k = 12i or k = 13i then
+    return 60i
+  end
+  if k = 14i or k = 15i or k = 16i then
+    return 70i
+  end
+  return -1i
+end
+# Pratt expression parser. Recursive calls are bounded independently of AST depth.
+fn expression(p: pointer, minimum: int): pointer
+  depth = get(p, 16i) + 1i
+  if depth > 128i then
+    fail(p, peek(p), "expression nesting exceeds 128")
+  end
+  put(p, 16i, depth)
+  tok = take(p)
+  k = get(tok, 0i)
+  left = nil()
+  if k = 3i or k = 17i or k = 46i then
+    left = literal(p, tok, false)
+  else
+    if k = 4i then
+      left = leaf(p, 1i, 1i, tok)
+    else
+      if k = 34i or k = 35i then
+        left = leaf(p, 2i, 2i, tok)
+        if k = 34i then
+          put(left, 3i, 1i)
+        end
+      else
+        if k = 2i then
+          if accept(p, 6i) then
+            args = nil()
+            count = 0i
+            if kind(p) != 7i then
+              while true do
+                if count >= 16i then
+                  fail(p, tok, "at most 16 call arguments are supported")
+                end
+                item = expression(p, 0i)
+                args = list_add(p, args, item)
+                count = count + 1i
+                if not accept(p, 10i) or kind(p) = 7i then
+                  break
+                end
+              end
+            end
+            expect(p, 7i, "expected ) after arguments")
+            left = call_node(p, tok, gets(tok, 1i), args, count)
+          else
+            b = binding(p, gets(tok, 1i))
+            if b = nil() then
+              f = function_named(p, gets(tok, 1i))
+              if f = nil() or get(f, 11i) != 1i then
+                fail(p, tok, concat("undefined variable: ", gets(tok, 1i)))
+              end
+              left = leaf(p, 7i, 5i, tok)
+              putp(left, 12i, f)
+            else
+              left = leaf(p, 3i, get(b, 2i), tok)
+              put(left, 6i, get(b, 3i))
+            end
+          end
+        else
+          if k = 6i then
+            left = expression(p, 0i)
+            expect(p, 7i, "expected closing )")
+          else
+            if k = 12i or k = 13i or k = 38i then
+              if minimum >= 90i and k != 38i and get(tok, 6i) != get(peek(p), 5i) then
+                fail(p, tok, "attach a for-list sign to its item; parenthesize expressions")
+              end
+              if k = 13i and (kind(p) = 3i or kind(p) = 17i or kind(p) = 46i) then
+                left = literal(p, take(p), true)
+              else
+                strength = 80i
+                if k = 38i and minimum < 90i then
+                  strength = 30i
+                end
+                if minimum >= 90i then
+                  strength = 90i
+                end
+                left = unary_node(p, tok, expression(p, strength))
+              end
+            else
+              fail(p, tok, "expected an expression")
+            end
+          end
+        end
+      end
+    end
+  end
+  while true do
+    if accept(p, 8i) then
+      t = get(left, 1i)
+      if t != 1i and t != 4i then
+        fail(p, tok, "only buffers and strings support indexing")
+      end
+      args = list_add(p, nil(), left)
+      args = list_add(p, args, expression(p, 0i))
+      expect(p, 9i, "expected closing ]")
+      name = "char_at"
+      if t = 4i then
+        name = "load8"
+      end
+      left = call_node(p, tok, name, args, 2i)
+      continue
+    end
+    prec = precedence(kind(p))
+    if prec < minimum or prec < 0i then
+      break
+    end
+    op = take(p)
+    right = expression(p, prec + 1i)
+    left = binary_node(p, op, left, right)
+  end
+  put(p, 16i, depth - 1i)
+  return left
+end
+fn call_arguments(p: pointer, token: pointer): pointer
+  args = nil()
+  count = 0i
+  if kind(p) != 7i then
+    while true do
+      if count >= 16i then
+        fail(p, token, "at most 16 call arguments are supported")
+      end
+      args = list_add(p, args, expression(p, 0i))
+      count = count + 1i
+      if not accept(p, 10i) or kind(p) = 7i then
+        break
+      end
+    end
+  end
+  expect(p, 7i, "expected ) after arguments")
+  return call_node(p, token, gets(token, 1i), args, count)
+end
+fn returns(body: pointer): bool
+  s = body
+  while s != nil() do
+    if get(s, 12i) != 0i then
+      return true
+    end
+    s = getp(s, 11i)
+  end
+  return false
+end
+# mode=0 parses a scoped block; mode=1 parses one top-level statement.
+fn block(p: pointer, mode: int): pointer
+  d = get(p, 17i)
+  if mode = 0i then
+    if d >= 64i then
+      fail(p, peek(p), "block nesting exceeds 64")
+    end
+    put(p, 17i, d + 1i)
+    push_scope(p)
+  end
+  head = nil()
+  tail = nil()
+  skip_lines(p)
+  while kind(p) != 28i and kind(p) != 27i and kind(p) != 54i and kind(p) != 0i do
+    first = take(p)
+    k = get(first, 0i)
+    declaration = 0i
+    if get(p, 27i) != 0i and (k = 24i or k = 55i or k = 33i) then
+      fail(p, first, "printing and process exit are not allowed inside tasks")
+    end
+    if k = 56i then
+      first = expect(p, 2i, "expected an existing variable after set")
+      k = 2i
+      if binding(p, gets(first, 1i)) = nil() then
+        fail(p, first, "set requires an existing variable; use let to declare one")
+      end
+      if kind(p) != 18i and kind(p) != 8i and not (kind(p) >= 47i and kind(p) <= 51i) then
+        fail(p, first, "set requires an assignment, without a type annotation")
+      end
+    end
+    if k = 44i or k = 45i then
+      declaration = k
+      first = expect(p, 2i, "expected variable name after let/const")
+      k = 2i
+      scope_item = getp(getp(p, 6i), 0i)
+      while scope_item != nil() do
+        if gets(scope_item, 0i) = gets(first, 1i) then
+          fail(p, first, "let/const cannot redeclare a name in the same scope")
+        end
+        scope_item = getp(scope_item, 4i)
+      end
+      if kind(p) != 11i and kind(p) != 18i then
+        fail(p, first, "let/const requires an initializer")
+      end
+    end
+    s = arena(p, 128i)
+    putp(s, 1i, first)
+    if k = 2i then
+      if accept(p, 6i) then
+        put(s, 0i, 6i)
+        putp(s, 4i, call_arguments(p, first))
+      else
+        if accept(p, 8i) then
+          b = binding(p, gets(first, 1i))
+          if b = nil() then
+            fail(p, first, "undefined buffer variable")
+          end
+          if get(b, 2i) != 4i then
+            fail(p, first, "indexed assignment requires a buffer")
+          end
+          base = leaf(p, 3i, 4i, first)
+          put(base, 6i, get(b, 3i))
+          args = list_add(p, nil(), base)
+          args = list_add(p, args, expression(p, 0i))
+          expect(p, 9i, "expected ]")
+          expect(p, 18i, "expected = after buffer index")
+          args = list_add(p, args, expression(p, 0i))
+          put(s, 0i, 6i)
+          putp(s, 4i, call_node(p, first, "store8", args, 3i))
+        else
+          annotated = accept(p, 11i)
+          requested = -1i
+          if annotated then
+            requested = read_type(p, false)
+          end
+          update = nil()
+          if kind(p) >= 47i and kind(p) <= 51i then
+            if declaration != 0i or annotated then
+              fail(p, first, "compound assignment updates an existing, unannotated variable")
+            end
+            update = take(p)
+          else
+            expect(p, 18i, "expected = (assignment), not == (comparison)")
+          end
+          e = expression(p, 0i)
+          if update != nil() then
+            previous = binding(p, gets(first, 1i))
+            if previous = nil() then
+              fail(p, first, "compound assignment requires an existing variable")
+            end
+            left = leaf(p, 3i, get(previous, 2i), first)
+            put(left, 6i, get(previous, 3i))
+            put(update, 0i, get(update, 0i) - 35i)
+            puts(update, 1i, slice(gets(update, 1i), 0i, 1i))
+            e = binary_node(p, update, left, e)
+          end
+          t = get(e, 1i)
+          if t = 6i then
+            fail(p, first, "cannot assign a void result")
+          end
+          if annotated and requested != t then
+            conversion = ""
+            if requested = 3i and t = 0i then
+              conversion = "int"
+            end
+            if requested = 0i and t = 3i then
+              conversion = "number"
+            end
+            if requested = 7i and (t = 0i or t = 3i) then
+              conversion = "float"
+            end
+            if conversion = "" then
+              fail(p, first, "initializer does not match its annotation")
+            end
+            args = list_add(p, nil(), e)
+            e = call_node(p, first, conversion, args, 1i)
+            t = get(e, 1i)
+          end
+          b = binding(p, gets(first, 1i))
+          if declaration != 0i then
+            b = nil()
+          end
+          slot = 0i
+          if b = nil() then
+            slot = slots(p, 1i, first)
+            bind_name(p, gets(first, 1i), t, slot)
+            if declaration = 45i then
+              put(binding(p, gets(first, 1i)), 5i, 1i)
+            end
+          else
+            if get(b, 5i) = 1i then
+              fail(p, first, "cannot reassign a const binding")
+            end
+            if get(b, 2i) != t then
+              fail(p, first, "a variable cannot change type")
+            end
+            slot = get(b, 3i)
+          end
+          put(s, 0i, 0i)
+          put(s, 2i, slot)
+          put(s, 3i, t)
+          putp(s, 4i, e)
+        end
+      end
+    else
+      if k = 24i or k = 55i then
+        put(s, 0i, 1i)
+        accept(p, 11i)
+        items = nil()
+        count = 0i
+        while true do
+          if k = 55i and count = 0i and (kind(p) = 1i or kind(p) = 0i) then
+            break
+          end
+          item = nil()
+          if kind(p) = 5i then
+            item = leaf(p, 1i, 1i, take(p))
+          else
+            item = expression(p, 0i)
+          end
+          if get(item, 1i) = 4i or get(item, 1i) = 6i then
+            fail(p, first, "cannot print buffers or void values")
+          end
+          items = list_add(p, items, item)
+          count = count + 1i
+          if not accept(p, 10i) then
+            break
+          end
+        end
+        if k = 55i then
+          newline = leaf(p, 1i, 1i, first)
+          puts(newline, 4i, "\n")
+          items = list_add(p, items, newline)
+          count = count + 1i
+        end
+        putp(s, 5i, items)
+        put(s, 6i, count)
+      else
+        if k = 33i then
+          put(s, 0i, 5i)
+          accept(p, 11i)
+          e = expression(p, 0i)
+          if get(e, 1i) != 0i and get(e, 1i) != 3i then
+            fail(p, first, "exit needs a number or int")
+          end
+          putp(s, 4i, e)
+          put(s, 12i, 1i)
+        else
+          if k = 25i then
+            put(s, 0i, 2i)
+            e = expression(p, 0i)
+            require_type(p, e, 2i)
+            putp(s, 4i, e)
+            expect(p, 26i, "expected then")
+            expect(p, 1i, "expected newline after then")
+            putp(s, 7i, block(p, 0i))
+            branch = s
+            chain = nil()
+            branches = 0i
+            while kind(p) = 54i do
+              branch_token = take(p)
+              branches = branches + 1i
+              if branches > 64i then
+                fail(p, branch_token, "elif chain exceeds 64 branches")
+              end
+              record = arena(p, 16i)
+              putp(record, 0i, branch)
+              putp(record, 1i, chain)
+              chain = record
+              child = arena(p, 128i)
+              put(child, 0i, 2i)
+              putp(child, 1i, branch_token)
+              condition = expression(p, 0i)
+              require_type(p, condition, 2i)
+              putp(child, 4i, condition)
+              expect(p, 26i, "expected then after elif condition")
+              expect(p, 1i, "expected newline after then")
+              putp(child, 7i, block(p, 0i))
+              putp(branch, 8i, child)
+              branch = child
+            end
+            if accept(p, 27i) then
+              expect(p, 1i, "expected newline after else")
+              putp(branch, 8i, block(p, 0i))
+            end
+            expect(p, 28i, "expected end after if")
+            while true do
+              if returns(getp(branch, 7i)) and returns(getp(branch, 8i)) then
+                put(branch, 12i, 1i)
+              end
+              if chain = nil() then
+                break
+              end
+              branch = getp(chain, 0i)
+              chain = getp(chain, 1i)
+            end
+          else
+            if k = 31i then
+              put(s, 0i, 4i)
+              e = expression(p, 0i)
+              require_type(p, e, 2i)
+              putp(s, 4i, e)
+              expect(p, 32i, "expected do after while condition")
+              expect(p, 1i, "expected newline after do")
+              put(p, 14i, get(p, 14i) + 1i)
+              putp(s, 7i, block(p, 0i))
+              put(p, 14i, get(p, 14i) - 1i)
+              expect(p, 28i, "expected end after while")
+            else
+              if k = 29i then
+                put(s, 0i, 3i)
+                name = expect(p, 2i, "expected for variable")
+                expect(p, 30i, "expected in")
+                items = nil()
+                count = 0i
+                t = -1i
+                while kind(p) != 1i and kind(p) != 0i do
+                  item = expression(p, 90i)
+                  if get(item, 1i) = 6i then
+                    fail(p, name, "void item in for list")
+                  end
+                  if count = 0i then
+                    t = get(item, 1i)
+                  else
+                    require_type(p, item, t)
+                  end
+                  items = list_add(p, items, item)
+                  count = count + 1i
+                  if count > 2048i then
+                    fail(p, name, "for list is too long")
+                  end
+                end
+                if count = 0i then
+                  fail(p, name, "for list must not be empty")
+                end
+                expect(p, 1i, "expected newline after for list")
+                putp(s, 5i, items)
+                put(s, 6i, count)
+                put(s, 3i, t)
+                put(s, 2i, slots(p, 1i, name))
+                put(s, 9i, slots(p, 1i, name))
+                put(s, 10i, slots(p, count, name))
+                push_scope(p)
+                bind_name(p, gets(name, 1i), t, get(s, 2i))
+                put(p, 14i, get(p, 14i) + 1i)
+                putp(s, 7i, block(p, 0i))
+                put(p, 14i, get(p, 14i) - 1i)
+                pop_scope(p)
+                expect(p, 28i, "expected end after for")
+              else
+                if k = 41i then
+                  put(s, 0i, 7i)
+                  expect(p, 1i, "expected newline after unsafe")
+                  put(p, 13i, get(p, 13i) + 1i)
+                  putp(s, 7i, block(p, 0i))
+                  put(p, 13i, get(p, 13i) - 1i)
+                  expect(p, 28i, "expected end after unsafe")
+                  if returns(getp(s, 7i)) then
+                    put(s, 12i, 1i)
+                  end
+                else
+                  if k = 40i then
+                    put(s, 0i, 8i)
+                    result = get(p, 15i)
+                    if result < 0i then
+                      fail(p, first, "return is only valid in a function")
+                    end
+                    if kind(p) != 1i and kind(p) != 0i then
+                      e = expression(p, 0i)
+                      if result = 6i then
+                        fail(p, first, "void functions cannot return a value")
+                      end
+                      require_type(p, e, result)
+                      putp(s, 4i, e)
+                    else
+                      if result != 6i then
+                        fail(p, first, "this function must return a value")
+                      end
+                    end
+                    put(s, 12i, 1i)
+                  else
+                    if k = 42i or k = 43i then
+                      if get(p, 14i) = 0i then
+                        fail(p, first, "break and continue require a loop")
+                      end
+                      put(s, 0i, 9i)
+                      if k = 43i then
+                        put(s, 0i, 10i)
+                      end
+                    else
+                      fail(p, first, "expected a statement; functions are top-level only")
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+    finish_line(p)
+    if head = nil() then
+      head = s
+    else
+      putp(tail, 11i, s)
+    end
+    tail = s
+    if mode = 1i then
+      break
+    end
+    skip_lines(p)
+  end
+  if mode = 0i then
+    pop_scope(p)
+    put(p, 17i, d)
+  end
+  return head
+end
+fn function_definition(p: pointer): void
+  tok = expect(p, 2i, "expected function name")
+  name = gets(tok, 1i)
+  if builtin_spec(name) != "" or function_named(p, name) != nil() then
+    fail(p, tok, "function name is already defined or reserved")
+  end
+  f = arena(p, 128i)
+  put(f, 11i, get(p, 27i))
+  puts(f, 0i, name)
+  putp(f, 2i, tok)
+  expect(p, 6i, "expected (")
+  params = nil()
+  count = 0i
+  if kind(p) != 7i then
+    while true do
+      if count >= 16i then
+        fail(p, tok, "at most 16 function parameters are supported")
+      end
+      arg = expect(p, 2i, "expected parameter name")
+      i = 0i
+      while i < count do
+        if gets(list_get(params, i), 0i) = gets(arg, 1i) then
+          fail(p, arg, "duplicate parameter")
+        end
+        i = i + 1i
+      end
+      param = arena(p, 48i)
+      puts(param, 0i, gets(arg, 1i))
+      t = 0i
+      if accept(p, 11i) then
+        t = read_type(p, false)
+      end
+      put(param, 2i, t)
+      put(param, 3i, count)
+      params = list_add(p, params, param)
+      count = count + 1i
+      if not accept(p, 10i) or kind(p) = 7i then
+        break
+      end
+    end
+  end
+  expect(p, 7i, "expected )")
+  result = 0i
+  if accept(p, 11i) then
+    result = read_type(p, true)
+  end
+  if get(p, 27i) != 0i then
+    if count != 3i or result != 6i then
+      fail(p, tok, "task signature must be (data: buffer, begin: int, finish: int): void")
+    end
+    if get(list_get(params, 0i), 2i) != 4i or get(list_get(params, 1i), 2i) != 3i or get(list_get(params, 2i), 2i) != 3i then
+      fail(p, tok, "task signature must be (data: buffer, begin: int, finish: int): void")
+    end
+  end
+  put(f, 3i, result)
+  putp(f, 4i, params)
+  put(f, 5i, count)
+  expect(p, 1i, "expected newline after function signature")
+  if getp(p, 8i) = nil() then
+    putp(p, 8i, f)
+  else
+    putp(getp(p, 9i), 8i, f)
+  end
+  putp(p, 9i, f)
+  bucket = name_bucket(name)
+  table = getp(p, 26i)
+  putp(f, 10i, getp(table, bucket))
+  putp(table, bucket, f)
+  saved_scope = getp(p, 6i)
+  saved_slots = get(p, 7i)
+  putp(p, 6i, nil())
+  push_scope(p)
+  put(p, 7i, count)
+  put(p, 15i, result)
+  i = 0i
+  while i < count do
+    arg = list_get(params, i)
+    bind_name(p, gets(arg, 0i), get(arg, 2i), get(arg, 3i))
+    i = i + 1i
+  end
+  body = block(p, 0i)
+  putp(f, 6i, body)
+  put(f, 7i, get(p, 7i))
+  expect(p, 28i, "expected end after function")
+  finish_line(p)
+  if result != 6i and not returns(body) then
+    fail(p, tok, "non-void function must return on every path")
+  end
+  putp(p, 6i, saved_scope)
+  put(p, 7i, saved_slots)
+  put(p, 15i, -1i)
+end
+fn parse(source: string, filename: string): pointer
+  p = new_arena(67108864i, 256i)
+  putp(p, 26i, raw(8192i))
+  puts(p, 19i, filename)
+  puts(p, 21i, source)
+  put(p, 15i, -1i)
+  push_scope(p)
+  lex(p, source)
+  head = nil()
+  tail = nil()
+  skip_lines(p)
+  while kind(p) != 0i do
+    put(p, 27i, 0i)
+    if accept(p, 57i) then
+      put(p, 27i, 1i)
+    end
+    if get(p, 27i) != 0i and kind(p) != 39i then
+      fail(p, peek(p), "task must be followed by fn")
+    end
+    if accept(p, 39i) then
+      function_definition(p)
+    else
+      if kind(p) = 28i or kind(p) = 27i or kind(p) = 54i then
+        fail(p, peek(p), "unexpected end, else, or elif")
+      end
+      item = block(p, 1i)
+      need(item != nil(), "internal empty top-level statement")
+      if head = nil() then
+        head = item
+      else
+        putp(tail, 11i, item)
+      end
+      tail = item
+    end
+    skip_lines(p)
+  end
+  putp(p, 10i, head)
+  put(p, 11i, get(p, 7i))
+  return p
+end
+# Code context after arena fields: code=3,size=4,next label=5,labels=6,
+# relocations head/tail=7/8, constants head/tail=9/10, instruction bytes=11,
+# string offset=12,payload bytes=13,return label=14,loop chain=15.
+fn emit(c: pointer, word: int): void
+  pos = get(c, 4i)
+  need(pos >= 0i and pos <= 33554428i, "generated code exceeds 32 MiB")
+  unsafe
+    poke32(offset(getp(c, 3i), pos), word)
+  end
+  put(c, 4i, pos + 4i)
+end
+fn mark(c: pointer, label: int, pos: int): void
+  need(label > 0i and label < 262144i, "label limit exceeded")
+  labels = getp(c, 6i)
+  need(get(labels, label) = 0i, "duplicate machine-code label")
+  put(labels, label, pos + 1i)
+end
+fn fresh(c: pointer): int
+  label = get(c, 5i)
+  need(label > 0i and label < 262144i, "label limit exceeded")
+  put(c, 5i, label + 1i)
+  return label
+end
+fn label_here(c: pointer, label: int): void
+  mark(c, label, get(c, 4i))
+end
+fn fixup(c: pointer, pos: int, kind: int, target: int): void
+  item = arena(c, 32i)
+  put(item, 0i, pos)
+  put(item, 1i, kind)
+  put(item, 2i, target)
+  if getp(c, 7i) = nil() then
+    putp(c, 7i, item)
+  else
+    putp(getp(c, 8i), 3i, item)
+  end
+  putp(c, 8i, item)
+end
+fn constant(c: pointer, label: int, text: string): void
+  item = arena(c, 32i)
+  put(item, 0i, label)
+  puts(item, 1i, text)
+  if getp(c, 9i) = nil() then
+    putp(c, 9i, item)
+  else
+    putp(getp(c, 10i), 3i, item)
+  end
+  putp(c, 10i, item)
+end
+fn text_label(c: pointer, text: string): int
+  if get(c, 17i) != 0i then
+    h = 0i
+    i = 0i
+    while i < int(len(text)) do
+      h = (h * 33i + byte_at(text, i)) % 1024i
+      i = i + 1i
+    end
+    table = getp(c, 18i)
+    entry = getp(table, h)
+    while entry != nil() do
+      if gets(entry, 1i) = text then
+        return get(entry, 0i)
+      end
+      entry = getp(entry, 3i)
+    end
+    label = fresh(c)
+    constant(c, label, text)
+    entry = arena(c, 32i)
+    put(entry, 0i, label)
+    puts(entry, 1i, text)
+    putp(entry, 3i, getp(table, h))
+    putp(table, h, entry)
+    return label
+  end
+  label = fresh(c)
+  constant(c, label, text)
+  return label
+end
+fn a_value(c: pointer, rd: int, bits: int): void
+  if get(c, 17i) != 0i then
+    zeroes = 0i
+    ones = 0i
+    shift = 0i
+    while shift < 64i do
+      half = band(shr(bits, shift), 65535i)
+      if half = 0i then
+        zeroes = zeroes + 1i
+      end
+      if half = 65535i then
+        ones = ones + 1i
+      end
+      shift = shift + 16i
+    end
+    if ones > zeroes then
+      shift = 0i
+      first = true
+      while shift < 64i do
+        half = band(shr(bits, shift), 65535i)
+        if half != 65535i or (first and shift = 48i) then
+          op = 0xF2800000
+          part = half
+          if first then
+            first = false
+            op = 0x92800000
+            part = bxor(half, 65535i)
+          end
+          emit(c, bor(op, bor(shl(shift / 16i, 21i), bor(shl(part, 5i), rd))))
+        end
+        shift = shift + 16i
+      end
+      return
+    end
+  end
+  emit(c, bor(0xD2800000, bor(shl(band(bits, 65535i), 5i), rd)))
+  shift = 16i
+  while shift < 64i do
+    part = band(shr(bits, shift), 65535i)
+    if part != 0i then
+      emit(c, bor(0xF2800000, bor(shl(shift / 16i, 21i), bor(shl(part, 5i), rd))))
+    end
+    shift = shift + 16i
+  end
+end
+fn a_mov(c: pointer, rd: int, rn: int): void
+  emit(c, bor(0xAA0003E0, bor(shl(rn, 16i), rd)))
+end
+fn a_add(c: pointer, rd: int, rn: int, rm: int): void
+  emit(c, bor(0x8B000000, bor(shl(rm, 16i), bor(shl(rn, 5i), rd))))
+end
+fn a_addshift(c: pointer, rd: int, rn: int, rm: int, shift: int): void
+  emit(c, bor(0x8B000000, bor(shl(rm, 16i), bor(shl(shift, 10i), bor(shl(rn, 5i), rd)))))
+end
+fn a_sub(c: pointer, rd: int, rn: int, rm: int): void
+  emit(c, bor(0xCB000000, bor(shl(rm, 16i), bor(shl(rn, 5i), rd))))
+end
+fn a_immediate(c: pointer, rd: int, rn: int, amount: int, down: bool, high: bool): void
+  need(amount >= 0i and amount < 4096i, "bad internal immediate")
+  op = 0x91000000
+  if down then
+    op = 0xD1000000
+  end
+  if high then
+    op = bor(op, 0x400000)
+  end
+  emit(c, bor(op, bor(shl(amount, 10i), bor(shl(rn, 5i), rd))))
+end
+fn a_addi(c: pointer, rd: int, rn: int, amount: int): void
+  a_immediate(c, rd, rn, amount, false, false)
+end
+fn a_subi(c: pointer, rd: int, rn: int, amount: int): void
+  a_immediate(c, rd, rn, amount, true, false)
+end
+fn a_stack(c: pointer, bytes: int, down: bool): void
+  need(bytes >= 0i and bytes <= 32768i and bytes % 16i = 0i, "bad stack size")
+  if bytes / 4096i != 0i then
+    a_immediate(c, 31i, 31i, bytes / 4096i, down, true)
+  end
+  if bytes % 4096i != 0i then
+    a_immediate(c, 31i, 31i, bytes % 4096i, down, false)
+  end
+end
+fn a_load(c: pointer, rd: int, base: int, bytes: int): void
+  need(bytes >= 0i and bytes <= 32760i and bytes % 8i = 0i, "bad load offset")
+  emit(c, bor(0xF9400000, bor(shl(bytes / 8i, 10i), bor(shl(base, 5i), rd))))
+end
+fn a_store(c: pointer, rd: int, base: int, bytes: int): void
+  need(bytes >= 0i and bytes <= 32760i and bytes % 8i = 0i, "bad store offset")
+  emit(c, bor(0xF9000000, bor(shl(bytes / 8i, 10i), bor(shl(base, 5i), rd))))
+end
+fn a_width(c: pointer, rd: int, base: int, width: int, read: bool): void
+  op = 0x39000000
+  if width = 2i then
+    op = 0x79000000
+  end
+  if width = 4i then
+    op = 0xB9000000
+  end
+  if width = 8i then
+    op = 0xF9000000
+  end
+  if read then
+    op = bor(op, 0x400000)
+  end
+  emit(c, bor(op, bor(shl(base, 5i), rd)))
+end
+fn a_cmp(c: pointer, rn: int, rm: int): void
+  emit(c, bor(0xEB00001F, bor(shl(rm, 16i), shl(rn, 5i))))
+end
+fn a_cmpi(c: pointer, rn: int, imm: int): void
+  need(imm >= 0i and imm < 4096i, "bad comparison immediate")
+  emit(c, bor(0xF100001F, bor(shl(imm, 10i), shl(rn, 5i))))
+end
+fn a_cset(c: pointer, rd: int, condition: int): void
+  emit(c, bor(0x9A9F07E0, bor(shl(bxor(condition, 1i), 12i), rd)))
+end
+fn a_branch(c: pointer, label: int, link: bool): void
+  fixup(c, get(c, 4i), 0i, label)
+  op = 0x14000000
+  if link then
+    op = 0x94000000
+  end
+  emit(c, op)
+end
+fn a_condition(c: pointer, condition: int, label: int): void
+  emit(c, bor(0x54000040, bxor(condition, 1i)))
+  a_branch(c, label, false)
+end
+fn a_zero(c: pointer, rn: int, label: int, nonzero: bool): void
+  op = 0xB5000040
+  if nonzero then
+    op = 0xB4000040
+  end
+  emit(c, bor(op, rn))
+  a_branch(c, label, false)
+end
+fn a_address(c: pointer, rd: int, label: int): void
+  fixup(c, get(c, 4i), 2i, label)
+  emit(c, bor(0x90000000, rd))
+  emit(c, bor(0x91000000, bor(shl(rd, 5i), rd)))
+end
+fn a_op3(c: pointer, op: int, rd: int, rn: int, rm: int): void
+  emit(c, bor(op, bor(shl(rm, 16i), bor(shl(rn, 5i), rd))))
+end
+fn a_neg(c: pointer, rd: int, rn: int, flags: bool): void
+  op = 0xCB0003E0
+  if flags then
+    op = 0xEB0003E0
+  end
+  emit(c, bor(op, bor(shl(rn, 16i), rd)))
+end
+fn a_msub(c: pointer, rd: int, rn: int, rm: int, ra: int): void
+  a_op3(c, bor(0x9B008000, shl(ra, 10i)), rd, rn, rm)
+end
+fn a_right(c: pointer, rd: int, rn: int, shift: int, signed: bool): void
+  op = 0xD340FC00
+  if signed then
+    op = 0x9340FC00
+  end
+  emit(c, bor(op, bor(shl(shift, 16i), bor(shl(rn, 5i), rd))))
+end
+fn a_fmov(c: pointer, dest: int, source: int, to_float: bool): void
+  op = 0x9E660000
+  if to_float then
+    op = 0x9E670000
+  end
+  emit(c, bor(op, bor(shl(source, 5i), dest)))
+end
+fn a_fconstant(c: pointer, rd: int, bits: int): void
+  a_value(c, 9i, bits)
+  a_fmov(c, rd, 9i, true)
+end
+fn a_fcmp(c: pointer, rn: int, rm: int): void
+  a_op3(c, 0x1E602000, 0i, rn, rm)
+end
+fn a_fbinary(c: pointer, rd: int, rn: int, rm: int, name: string): void
+  op = 0x1E602800
+  if name = "-" then
+    op = 0x1E603800
+  end
+  if name = "*" then
+    op = 0x1E600800
+  end
+  if name = "/" then
+    op = 0x1E601800
+  end
+  a_op3(c, op, rd, rn, rm)
+end
+fn store_slot(c: pointer, slot: int): void
+  a_store(c, 0i, 28i, slot * 16i)
+  a_store(c, 1i, 28i, slot * 16i + 8i)
+end
+fn load_slot(c: pointer, slot: int): void
+  a_load(c, 0i, 28i, slot * 16i)
+  a_load(c, 1i, 28i, slot * 16i + 8i)
+end
+fn push_value(c: pointer): void
+  a_stack(c, 16i, true)
+  a_store(c, 0i, 31i, 0i)
+  a_store(c, 1i, 31i, 8i)
+end
+fn pop_left(c: pointer): void
+  a_load(c, 2i, 31i, 0i)
+  a_load(c, 3i, 31i, 8i)
+  a_stack(c, 16i, false)
+end
+fn raw_copy(dst: pointer, src: pointer, bytes: int): void
+  i = 0i
+  unsafe
+    while i + 8i <= bytes do
+      poke64(offset(dst, i), peek64(offset(src, i)))
+      i = i + 8i
+    end
+    while i < bytes do
+      poke8(offset(dst, i), peek8(offset(src, i)))
+      i = i + 1i
+    end
+  end
+end
+# Source inclusion uses one bounded output arena; each lexical path is included once.
+fn path_normal(path: string): string
+  assert(len(path) > 0 and len(path) < 4096)
+  b = alloc(4096i)
+  marks = alloc(4096i * 8i)
+  count = 0i
+  size = 0i
+  root = byte_at(path, 0i) = 47i
+  if root then
+    b[0] = 47i
+    size = 1i
+  end
+  i = 0i
+  while i < int(len(path)) do
+    start = i
+    while i < int(len(path)) and byte_at(path, i) != 47i do
+      if byte_at(path, i) = 10i or byte_at(path, i) = 13i then
+        die("newlines are not permitted in source paths", 65i)
+      end
+      i = i + 1i
+    end
+    part = slice(path, start, i - start)
+    i = i + 1i
+    if part = "" or part = "." then
+      continue
+    end
+    if part = ".." and count > 0i then
+      last = load64(marks, (count - 1i) * 8i)
+      skip = last
+      if skip < size and int(b[skip]) = 47i then
+        skip = skip + 1i
+      end
+      prior = ""
+      unsafe
+        prior = view(b, skip, size - skip)
+      end
+      if prior != ".." then
+        size = last
+        count = count - 1i
+        continue
+      end
+    end
+    if part = ".." and root and count = 0i then
+      continue
+    end
+    store64(marks, count * 8i, size)
+    count = count + 1i
+    if size > 0i and int(b[size - 1i]) != 47i then
+      b[size] = 47i
+      size = size + 1i
+    end
+    copy(b, size, part, 0i, len(part))
+    size = size + int(len(part))
+  end
+  free(marks)
+  if size = 0i then
+    b[0] = 46i
+    size = 1i
+  end
+  unsafe
+    return view(b, 0i, size)
+  end
+end
+fn source_parent(path: string): string
+  slash = -1i
+  i = 0i
+  while i < int(len(path)) do
+    if byte_at(path, i) = 47i then
+      slash = i
+    end
+    i = i + 1i
+  end
+  if slash < 0i then
+    return ""
+  end
+  return slice(path, 0i, slash + 1i)
+end
+fn environment(name: string): string
+  unsafe
+    env = envp()
+    j = 0i
+    while j < 65536i do
+      entry = pointer(peek64(offset(env, j * 8i)))
+      if entry = nil() then
+        return ""
+      end
+      size = 0i
+      while size < 65536i and int(peek8(offset(entry, size))) != 0i do
+        size = size + 1i
+      end
+      text = string_at(entry, size)
+      n = int(len(name))
+      if size > n and slice(text, 0i, n) = name and byte_at(text, n) = 61i then
+        return slice(text, n + 1i, size - n - 1i)
+      end
+      j = j + 1i
+    end
+  end
+  return ""
+end
+fn file_exists(path: string): bool
+  text = cstring(path)
+  unsafe
+    fd = syscall(5i, address(text), 0i, 0i, 0i, 0i, 0i)
+    free(text)
+    if fd < 0i then
+      return false
+    end
+    syscall(6i, fd, 0i, 0i, 0i, 0i, 0i)
+  end
+  return true
+end
+fn executable_name(): string
+  name = arg(0i)
+  i = 0i
+  while i < int(len(name)) do
+    if byte_at(name, i) = 47i then
+      return name
+    end
+    i = i + 1i
+  end
+  search = environment("PATH")
+  i = 0i
+  while i <= int(len(search)) do
+    begin = i
+    while i < int(len(search)) and byte_at(search, i) != 58i do
+      i = i + 1i
+    end
+    directory = slice(search, begin, i - begin)
+    if directory = "" then
+      directory = "."
+    end
+    candidate = concat(concat(directory, "/"), name)
+    if file_exists(candidate) then
+      return candidate
+    end
+    i = i + 1i
+  end
+  return name
+end
+fn library_root(): string
+  override = environment("APO_LIB")
+  if override != "" then
+    return path_normal(override)
+  end
+  return path_normal(concat(source_parent(executable_name()), "lib"))
+end
+
+fn source_append(state: pointer, text: string): void
+  n = int(len(text))
+  used = get(state, 1i)
+  if n > 8388608i - used then
+    die("expanded source exceeds 8 MiB", 65i)
+  end
+  unsafe
+    raw_copy(at(getp(state, 0i), used), address(text), n)
+  end
+  put(state, 1i, used + n)
+end
+fn source_marker(state: pointer, file: string, line: int): void
+  source_append(state, "#@apo-file:")
+  source_append(state, strint(line))
+  source_append(state, ":")
+  source_append(state, file)
+  source_append(state, "\n")
+end
+fn expand_file(state: pointer, filename: string, depth: int): void
+  if depth > 16i then
+    die("use nesting exceeds 16", 65i)
+  end
+  path = path_normal(filename)
+  entry = getp(state, 2i)
+  while entry != nil() do
+    if gets(entry, 0i) = path then
+      if get(entry, 2i) = 1i then
+        die(concat("cyclic use: ", path), 65i)
+      end
+      return
+    end
+    entry = getp(entry, 3i)
+  end
+  if get(state, 3i) >= 64i then
+    die("use limit is 64 source files", 65i)
+  end
+  put(state, 3i, get(state, 3i) + 1i)
+  entry = raw(32i)
+  puts(entry, 0i, path)
+  put(entry, 2i, 1i)
+  putp(entry, 3i, getp(state, 2i))
+  putp(state, 2i, entry)
+  source = read_source(path)
+  source_marker(state, path, 1i)
+  pos = 0i
+  line = 1i
+  while pos < int(len(source)) do
+    begin = pos
+    while pos < int(len(source)) and byte_at(source, pos) != 10i and byte_at(source, pos) != 13i do
+      pos = pos + 1i
+    end
+    text = slice(source, begin, pos - begin)
+    if pos < int(len(source)) then
+      ch = byte_at(source, pos)
+      pos = pos + 1i
+      if ch = 13i and source_byte(source, pos) = 10i then
+        pos = pos + 1i
+      end
+    end
+    if starts(text, "use ") or starts(text, "use\t") then
+      i = 3i
+      while i < int(len(text)) and (byte_at(text, i) = 32i or byte_at(text, i) = 9i) do
+        i = i + 1i
+      end
+      imported = ""
+      named = source_byte(text, i) != 34i
+      if named then
+        start = i
+        if not isletter(source_byte(text, i)) and source_byte(text, i) != 95i then
+          die(concat(path, ": expected a library name or quoted .apo path after use"), 65i)
+        end
+        while i < int(len(text)) and isident(byte_at(text, i)) do
+          i = i + 1i
+        end
+        name = slice(text, start, i - start)
+        imported = concat(concat(gets(state, 4i), "/"), concat(name, ".apo"))
+        if not file_exists(imported) then
+          die(concat(concat("library not found: ", name), concat("; searched ", concat(imported, "; set APO_LIB or pass --lib-dir"))), 66i)
+        end
+      else
+        i = i + 1i
+        start = i
+        while i < int(len(text)) and byte_at(text, i) != 34i do
+          if byte_at(text, i) = 92i then
+            die("use paths must not contain backslash escapes", 65i)
+          end
+          i = i + 1i
+        end
+        if i >= int(len(text)) or i = start then
+          die("invalid use path", 65i)
+        end
+        imported = slice(text, start, i - start)
+        i = i + 1i
+        if byte_at(imported, 0i) != 47i then
+          imported = concat(source_parent(path), imported)
+        end
+      end
+      while i < int(len(text)) and (byte_at(text, i) = 32i or byte_at(text, i) = 9i) do
+        i = i + 1i
+      end
+      if i < int(len(text)) and byte_at(text, i) != 35i and not starts(slice(text, i, int(len(text)) - i), "//") then
+        die("only a line comment may follow use", 65i)
+      end
+      if not apo_suffix(imported) then
+        die("use path must end in .apo", 65i)
+      end
+      expand_file(state, imported, depth + 1i)
+      source_marker(state, path, line + 1i)
+    else
+      source_append(state, text)
+      source_append(state, "\n")
+    end
+    line = line + 1i
+  end
+  put(entry, 2i, 0i)
+end
+fn load_program(path: string, libraries: string): string
+  state = raw(48i)
+  puts(state, 4i, libraries)
+  putp(state, 0i, raw(8388609i))
+  expand_file(state, path, 0i)
+  return rawtext(getp(state, 0i), get(state, 1i))
+end
+
+fn finish_code(c: pointer): void
+  size = get(c, 4i)
+  put(c, 11i, size)
+  size = band(size + 15i, -16i)
+  put(c, 12i, size)
+  item = getp(c, 9i)
+  data = getp(c, 3i)
+  while item != nil() do
+    n = get(item, 2i)
+    need(size + n + 1i <= 33554432i, "payload exceeds 32 MiB")
+    mark(c, get(item, 0i), size)
+    raw_copy(at(data, size), getp(item, 1i), n)
+    setb(data, size + n, 0i)
+    size = size + n + 1i
+    item = getp(item, 3i)
+  end
+  put(c, 13i, size)
+  data_offset = ((4096i + size + 16383i) / 16384i) * 16384i - 4096i
+  if get(c, 25i) != 0i then
+    mark(c, get(c, 25i), data_offset)
+  end
+  if get(c, 26i) != 0i then
+    mark(c, get(c, 26i), data_offset + 8i)
+  end
+  fix = getp(c, 7i)
+  labels = getp(c, 6i)
+  while fix != nil() do
+    where = get(fix, 0i)
+    kind = get(fix, 1i)
+    target = get(labels, get(fix, 2i)) - 1i
+    need(target >= 0i, "unresolved native label")
+    unsafe
+      word = int(peek32(at(data, where)))
+      if kind = 2i then
+        pages = (4096i + target) / 4096i - (4096i + where) / 4096i
+        need(pages >= -1048576i and pages < 1048576i, "ADRP range exceeded")
+        bits = band(pages, 0x1fffff)
+        word = bor(word, bor(shl(band(bits, 3i), 29i), shl(shr(bits, 2i), 5i)))
+        next = int(peek32(at(data, where + 4i)))
+        poke32(at(data, where + 4i), bor(next, shl(band(4096i + target, 4095i), 10i)))
+      else
+        difference = target - where
+        need(difference % 4i = 0i, "unaligned branch target")
+        distance = difference / 4i
+        need(distance >= -33554432i and distance < 33554432i, "branch range exceeded")
+        word = bor(word, band(distance, 0x3ffffff))
+      end
+      poke32(at(data, where), word)
+    end
+    fix = getp(fix, 3i)
+  end
+end
+# ARM64 runtime source: fixed instructions plus explicit label relocations.
+# Every word is emitted by APO itself; no external assembler or linker.
+fn runtime_id(name: string): int
+  if name = "error.assert" then
+    return 6i
+  end
+  if name = "error.bounds" then
+    return 7i
+  end
+  if name = "error.byte" then
+    return 8i
+  end
+  if name = "error.exit" then
+    return 9i
+  end
+  if name = "error.float" then
+    return 10i
+  end
+  if name = "error.freed" then
+    return 11i
+  end
+  if name = "error.int_overflow" then
+    return 12i
+  end
+  if name = "error.integer" then
+    return 13i
+  end
+  if name = "error.memory" then
+    return 14i
+  end
+  if name = "error.overflow" then
+    return 15i
+  end
+  if name = "error.precision" then
+    return 16i
+  end
+  if name = "error.shift" then
+    return 17i
+  end
+  if name = "error.size" then
+    return 18i
+  end
+  if name = "error.stack" then
+    return 19i
+  end
+  if name = "error.time" then
+    return 20i
+  end
+  if name = "error.zero" then
+    return 21i
+  end
+  if name = "program.entry" then
+    return 55i
+  end
+  if name = "runtime.alloc" then
+    return 56i
+  end
+  if name = "runtime.bounds" then
+    return 57i
+  end
+  if name = "runtime.clock" then
+    return 58i
+  end
+  if name = "runtime.divide" then
+    return 59i
+  end
+  if name = "runtime.float_print" then
+    return 60i
+  end
+  if name = "runtime.free" then
+    return 61i
+  end
+  if name = "runtime.integer_print" then
+    return 62i
+  end
+  if name = "runtime.muldiv" then
+    return 63i
+  end
+  if name = "runtime.multiply" then
+    return 64i
+  end
+  if name = "runtime.number" then
+    return 65i
+  end
+  if name = "runtime.pointer_print" then
+    return 66i
+  end
+  if name = "runtime.rawclock" then
+    return 67i
+  end
+  if name = "runtime.sleep" then
+    return 68i
+  end
+  if name = "runtime.sleep_common" then
+    return 69i
+  end
+  if name = "runtime.sleep_until" then
+    return 70i
+  end
+  if name = "runtime.string_equal" then
+    return 71i
+  end
+  if name = "runtime.validate" then
+    return 72i
+  end
+  if name = "runtime.write" then
+    return 73i
+  end
+  print: "internal error: unknown runtime label ", name, \nl
+  exit 70i
+end
+
+fn emit_runtime(c: pointer): void
+  emit(c, 0x14000000) # b program.entry
+  mark(c, 73i, 4i) # runtime.write
+  emit(c, 0xaa0003e9) # mov register
+  emit(c, 0xaa0103ea) # mov register
+  emit(c, 0xaa0203eb) # mov register
+  emit(c, 0xb500004b) # cb.inverse +8
+  emit(c, 0x14000000) # b write.done.1
+  mark(c, 103i, 24i) # write.loop.0
+  emit(c, 0xaa0903e0) # mov register
+  emit(c, 0xaa0a03e1) # mov register
+  emit(c, 0xaa0b03e2) # mov register
+  emit(c, 0xd2800090) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b write.error.2
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b write.io.3
+  emit(c, 0x8b00014a) # add registers
+  emit(c, 0xcb00016b) # sub registers
+  emit(c, 0xb400004b) # cb.inverse +8
+  emit(c, 0x14000000) # b write.loop.0
+  mark(c, 100i, 76i) # write.done.1
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 101i, 80i) # write.error.2
+  emit(c, 0xf100101f) # cmp immediate
+  emit(c, 0x54000041) # b.inverse +8
+  emit(c, 0x14000000) # b write.loop.0
+  mark(c, 102i, 92i) # write.io.3
+  emit(c, 0xd2800940) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 65i, 108i) # runtime.number
+  emit(c, 0xd10183ff) # sub immediate
+  emit(c, 0xf9002bfd) # str x29
+  emit(c, 0xf9002ffe) # str x30
+  emit(c, 0x910143fd) # add immediate
+  emit(c, 0x910103e4) # add immediate
+  emit(c, 0xaa0403f1) # mov register
+  emit(c, 0xaa0003ec) # mov register
+  emit(c, 0xd280000f) # movz x15
+  emit(c, 0xf100001f) # cmp immediate
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b number.positive.4
+  emit(c, 0xcb0c03ec) # neg
+  emit(c, 0xd280002f) # movz x15
+  mark(c, 51i, 160i) # number.positive.4
+  emit(c, 0xd2884810) # movz x16
+  emit(c, 0xf2a001f0) # movk x16
+  emit(c, 0x9ad0098d) # udiv
+  emit(c, 0x9b10b1ae) # msub (remainder)
+  emit(c, 0xd2800148) # movz x8
+  emit(c, 0xb500004e) # cb.inverse +8
+  emit(c, 0x14000000) # b number.integer.5
+  emit(c, 0xd28000c7) # movz x7
+  mark(c, 29i, 192i) # fraction.trim.6
+  emit(c, 0x9ac809c6) # udiv
+  emit(c, 0x9b08b8c5) # msub (remainder)
+  emit(c, 0xb4000045) # cb.inverse +8
+  emit(c, 0x14000000) # b fraction.digits.7
+  emit(c, 0xaa0603ee) # mov register
+  emit(c, 0xd10004e7) # sub immediate
+  emit(c, 0x14000000) # b fraction.trim.6
+  mark(c, 28i, 220i) # fraction.digits.7
+  emit(c, 0x9ac809c6) # udiv
+  emit(c, 0x9b08b8c5) # msub (remainder)
+  emit(c, 0x9100c0a5) # add immediate
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0x39000225) # strb
+  emit(c, 0xaa0603ee) # mov register
+  emit(c, 0xd10004e7) # sub immediate
+  emit(c, 0xb4000047) # cb.inverse +8
+  emit(c, 0x14000000) # b fraction.digits.7
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0xd28005c5) # movz x5
+  emit(c, 0x39000225) # strb
+  mark(c, 50i, 268i) # number.integer.5
+  emit(c, 0x9ac809a6) # udiv
+  emit(c, 0x9b08b4c5) # msub (remainder)
+  emit(c, 0x9100c0a5) # add immediate
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0x39000225) # strb
+  emit(c, 0xaa0603ed) # mov register
+  emit(c, 0xb400004d) # cb.inverse +8
+  emit(c, 0x14000000) # b number.integer.5
+  emit(c, 0xb500004f) # cb.inverse +8
+  emit(c, 0x14000000) # b number.write.8
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0xd28005a5) # movz x5
+  emit(c, 0x39000225) # strb
+  mark(c, 52i, 320i) # number.write.8
+  emit(c, 0xd2800020) # movz x0
+  emit(c, 0xaa1103e1) # mov register
+  emit(c, 0xcb110082) # sub registers
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xf9402bfd) # ldr x29
+  emit(c, 0xf9402ffe) # ldr x30
+  emit(c, 0x910183ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 62i, 352i) # runtime.integer_print
+  emit(c, 0xd10103ff) # sub immediate
+  emit(c, 0xf9001bfd) # str x29
+  emit(c, 0xf9001ffe) # str x30
+  emit(c, 0x9100c3fd) # add immediate
+  emit(c, 0x9100a3e4) # add immediate
+  emit(c, 0xaa0403f1) # mov register
+  emit(c, 0xaa0003ec) # mov register
+  emit(c, 0xd280000f) # movz x15
+  emit(c, 0xf100019f) # cmp immediate
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b int.positive.9
+  emit(c, 0xcb0c03ec) # neg
+  emit(c, 0xd280002f) # movz x15
+  mark(c, 41i, 404i) # int.positive.9
+  emit(c, 0xd2800148) # movz x8
+  mark(c, 39i, 408i) # int.digits.10
+  emit(c, 0x9ac80986) # udiv
+  emit(c, 0x9b08b0c5) # msub (remainder)
+  emit(c, 0x9100c0a5) # add immediate
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0x39000225) # strb
+  emit(c, 0xaa0603ec) # mov register
+  emit(c, 0xb400004c) # cb.inverse +8
+  emit(c, 0x14000000) # b int.digits.10
+  emit(c, 0xb500004f) # cb.inverse +8
+  emit(c, 0x14000000) # b int.output.11
+  emit(c, 0xd28005a5) # movz x5
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0x39000225) # strb
+  mark(c, 40i, 460i) # int.output.11
+  emit(c, 0xaa1103e1) # mov register
+  emit(c, 0xcb110082) # sub registers
+  emit(c, 0xd2800020) # movz x0
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xf9401bfd) # ldr x29
+  emit(c, 0xf9401ffe) # ldr x30
+  emit(c, 0x910103ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 66i, 492i) # runtime.pointer_print
+  emit(c, 0xd10103ff) # sub immediate
+  emit(c, 0xf9001bfd) # str x29
+  emit(c, 0xf9001ffe) # str x30
+  emit(c, 0x9100c3fd) # add immediate
+  emit(c, 0x91004bf1) # add immediate
+  emit(c, 0xd2800207) # movz x7
+  emit(c, 0xd28001e8) # movz x8
+  emit(c, 0x90000006) # adrp string.12
+  emit(c, 0x910000c6) # add page offset
+  mark(c, 38i, 528i) # hex.loop.13
+  emit(c, 0x8a080005) # band
+  emit(c, 0x8b0500c5) # add registers
+  emit(c, 0x394000a5) # ldrb
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0x39000225) # strb
+  emit(c, 0xd344fc00) # lsr
+  emit(c, 0xd10004e7) # sub immediate
+  emit(c, 0xb4000047) # cb.inverse +8
+  emit(c, 0x14000000) # b hex.loop.13
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0xd2800f05) # movz x5
+  emit(c, 0x39000225) # strb
+  emit(c, 0xd1000631) # sub immediate
+  emit(c, 0xd2800605) # movz x5
+  emit(c, 0x39000225) # strb
+  emit(c, 0xd2800020) # movz x0
+  emit(c, 0x910003e1) # add immediate
+  emit(c, 0xd2800242) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xf9401bfd) # ldr x29
+  emit(c, 0xf9401ffe) # ldr x30
+  emit(c, 0x910103ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 71i, 620i) # runtime.string_equal
+  emit(c, 0xeb01007f) # cmp registers
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b string.no.14
+  emit(c, 0xb5000041) # cb.inverse +8
+  emit(c, 0x14000000) # b string.yes.15
+  mark(c, 97i, 640i) # string.compare.16
+  emit(c, 0x39400049) # ldrb
+  emit(c, 0x3940000a) # ldrb
+  emit(c, 0xeb0a013f) # cmp registers
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b string.no.14
+  emit(c, 0x91000442) # add immediate
+  emit(c, 0x91000400) # add immediate
+  emit(c, 0xd1000421) # sub immediate
+  emit(c, 0xb4000041) # cb.inverse +8
+  emit(c, 0x14000000) # b string.compare.16
+  mark(c, 99i, 680i) # string.yes.15
+  emit(c, 0xd2800020) # movz x0
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 98i, 688i) # string.no.14
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 64i, 696i) # runtime.multiply
+  emit(c, 0xaa0203ec) # mov register
+  emit(c, 0xaa0003ed) # mov register
+  emit(c, 0xca0d018e) # eor
+  emit(c, 0xd37ffdce) # lsr
+  emit(c, 0xf100019f) # cmp immediate
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b magnitude.a.17
+  emit(c, 0xcb0c03ec) # neg
+  mark(c, 42i, 728i) # magnitude.a.17
+  emit(c, 0xf10001bf) # cmp immediate
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b magnitude.b.18
+  emit(c, 0xcb0d03ed) # neg
+  mark(c, 44i, 744i) # magnitude.b.18
+  emit(c, 0xb500004c) # cb.inverse +8
+  emit(c, 0x14000000) # b multiply.zero.19
+  emit(c, 0xb500004d) # cb.inverse +8
+  emit(c, 0x14000000) # b multiply.zero.19
+  emit(c, 0xd288480f) # movz x15
+  emit(c, 0xf2a001ef) # movk x15
+  emit(c, 0xaa0c03e9) # mov register
+  emit(c, 0xaa0f03ea) # mov register
+  mark(c, 34i, 776i) # gcd.loop.20
+  emit(c, 0xb500004a) # cb.inverse +8
+  emit(c, 0x14000000) # b gcd.done.21
+  emit(c, 0x9aca092b) # udiv
+  emit(c, 0x9b0aa56b) # msub (remainder)
+  emit(c, 0xaa0a03e9) # mov register
+  emit(c, 0xaa0b03ea) # mov register
+  emit(c, 0x14000000) # b gcd.loop.20
+  mark(c, 30i, 804i) # gcd.done.21
+  emit(c, 0x9ac9098c) # udiv
+  emit(c, 0x9ac909ef) # udiv
+  emit(c, 0xaa0d03e9) # mov register
+  emit(c, 0xaa0f03ea) # mov register
+  mark(c, 35i, 820i) # gcd.loop.22
+  emit(c, 0xb500004a) # cb.inverse +8
+  emit(c, 0x14000000) # b gcd.done.23
+  emit(c, 0x9aca092b) # udiv
+  emit(c, 0x9b0aa56b) # msub (remainder)
+  emit(c, 0xaa0a03e9) # mov register
+  emit(c, 0xaa0b03ea) # mov register
+  emit(c, 0x14000000) # b gcd.loop.22
+  mark(c, 31i, 848i) # gcd.done.23
+  emit(c, 0x9ac909ad) # udiv
+  emit(c, 0x9ac909ef) # udiv
+  emit(c, 0xf10005ff) # cmp immediate
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b error.precision
+  emit(c, 0x9b0d7d80) # mul
+  emit(c, 0x9bcd7d90) # umulh
+  emit(c, 0xb4000050) # cb.inverse +8
+  emit(c, 0x14000000) # b error.overflow
+  emit(c, 0xb400004e) # cb.inverse +8
+  emit(c, 0x14000000) # b product.negative.24
+  emit(c, 0xd29fffef) # movz x15
+  emit(c, 0xf2bfffef) # movk x15
+  emit(c, 0xf2dfffef) # movk x15
+  emit(c, 0xf2efffef) # movk x15
+  emit(c, 0xeb0f001f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.overflow
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 53i, 924i) # product.negative.24
+  emit(c, 0xd280000f) # movz x15
+  emit(c, 0xf2f0000f) # movk x15
+  emit(c, 0xeb0f001f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.overflow
+  emit(c, 0xcb0003e0) # neg
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 49i, 952i) # multiply.zero.19
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 59i, 960i) # runtime.divide
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b error.zero
+  emit(c, 0xaa0203ec) # mov register
+  emit(c, 0xaa0003ed) # mov register
+  emit(c, 0xca0d018e) # eor
+  emit(c, 0xd37ffdce) # lsr
+  emit(c, 0xf100019f) # cmp immediate
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b magnitude.a.25
+  emit(c, 0xcb0c03ec) # neg
+  mark(c, 43i, 1000i) # magnitude.a.25
+  emit(c, 0xf10001bf) # cmp immediate
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b magnitude.b.26
+  emit(c, 0xcb0d03ed) # neg
+  mark(c, 45i, 1016i) # magnitude.b.26
+  emit(c, 0xb500004c) # cb.inverse +8
+  emit(c, 0x14000000) # b divide.zero.27
+  emit(c, 0xaa0c03e9) # mov register
+  emit(c, 0xaa0d03ea) # mov register
+  mark(c, 36i, 1032i) # gcd.loop.28
+  emit(c, 0xb500004a) # cb.inverse +8
+  emit(c, 0x14000000) # b gcd.done.29
+  emit(c, 0x9aca092b) # udiv
+  emit(c, 0x9b0aa56b) # msub (remainder)
+  emit(c, 0xaa0a03e9) # mov register
+  emit(c, 0xaa0b03ea) # mov register
+  emit(c, 0x14000000) # b gcd.loop.28
+  mark(c, 32i, 1060i) # gcd.done.29
+  emit(c, 0x9ac9098c) # udiv
+  emit(c, 0x9ac909ad) # udiv
+  emit(c, 0xd288480f) # movz x15
+  emit(c, 0xf2a001ef) # movk x15
+  emit(c, 0xaa0f03e9) # mov register
+  emit(c, 0xaa0d03ea) # mov register
+  mark(c, 37i, 1084i) # gcd.loop.30
+  emit(c, 0xb500004a) # cb.inverse +8
+  emit(c, 0x14000000) # b gcd.done.31
+  emit(c, 0x9aca092b) # udiv
+  emit(c, 0x9b0aa56b) # msub (remainder)
+  emit(c, 0xaa0a03e9) # mov register
+  emit(c, 0xaa0b03ea) # mov register
+  emit(c, 0x14000000) # b gcd.loop.30
+  mark(c, 33i, 1112i) # gcd.done.31
+  emit(c, 0x9ac909ef) # udiv
+  emit(c, 0x9ac909ad) # udiv
+  emit(c, 0xf10005bf) # cmp immediate
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b error.precision
+  emit(c, 0x9b0f7d80) # mul
+  emit(c, 0x9bcf7d90) # umulh
+  emit(c, 0xb4000050) # cb.inverse +8
+  emit(c, 0x14000000) # b error.overflow
+  emit(c, 0xb400004e) # cb.inverse +8
+  emit(c, 0x14000000) # b product.negative.32
+  emit(c, 0xd29fffef) # movz x15
+  emit(c, 0xf2bfffef) # movk x15
+  emit(c, 0xf2dfffef) # movk x15
+  emit(c, 0xf2efffef) # movk x15
+  emit(c, 0xeb0f001f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.overflow
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 54i, 1188i) # product.negative.32
+  emit(c, 0xd280000f) # movz x15
+  emit(c, 0xf2f0000f) # movk x15
+  emit(c, 0xeb0f001f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.overflow
+  emit(c, 0xcb0003e0) # neg
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 5i, 1216i) # divide.zero.27
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 60i, 1224i) # runtime.float_print
+  emit(c, 0xd374fc09) # lsr
+  emit(c, 0xd280ffea) # movz x10
+  emit(c, 0x8a0a0129) # band
+  emit(c, 0xf11ffd3f) # cmp immediate
+  emit(c, 0x54000041) # b.inverse +8
+  emit(c, 0x14000000) # b error.float
+  emit(c, 0xd10103ff) # sub immediate
+  emit(c, 0xf9001bfd) # str x29
+  emit(c, 0xf9001ffe) # str x30
+  emit(c, 0x9100c3fd) # add immediate
+  emit(c, 0x9e670000) # fmov d,x bits
+  emit(c, 0x1e60c001) # fabs d1,d0
+  emit(c, 0xd280000c) # movz x12
+  emit(c, 0xd2800009) # movz x9
+  emit(c, 0x9e670122) # fmov d,x bits
+  emit(c, 0x1e622020) # fcmp
+  emit(c, 0x54000041) # b.inverse +8
+  emit(c, 0x14000000) # b float.normal.36
+  emit(c, 0xd29db1a9) # movz x9
+  emit(c, 0xf2b416a9) # movk x9
+  emit(c, 0xf2d8dee9) # movk x9
+  emit(c, 0xf2e7d609) # movk x9
+  emit(c, 0x9e670122) # fmov d,x bits
+  emit(c, 0x1e622020) # fcmp
+  emit(c, 0x54000045) # b.inverse +8
+  emit(c, 0x14000000) # b float.normalize.33
+  emit(c, 0xd2800009) # movz x9
+  emit(c, 0xf2b44009) # movk x9
+  emit(c, 0xf2c35289) # movk x9
+  emit(c, 0xf2e84da9) # movk x9
+  emit(c, 0x9e670122) # fmov d,x bits
+  emit(c, 0x1e622020) # fcmp
+  emit(c, 0x54000045) # b.inverse +8
+  emit(c, 0x14000000) # b float.normal.36
+  mark(c, 26i, 1360i) # float.normalize.33
+  emit(c, 0xd2800009) # movz x9
+  emit(c, 0xf2e80489) # movk x9
+  emit(c, 0x9e670122) # fmov d,x bits
+  emit(c, 0xd2800009) # movz x9
+  emit(c, 0xf2e7fe09) # movk x9
+  emit(c, 0x9e670123) # fmov d,x bits
+  mark(c, 23i, 1384i) # float.high.34
+  emit(c, 0x1e622020) # fcmp
+  emit(c, 0x54000045) # b.inverse +8
+  emit(c, 0x14000000) # b float.low.35
+  emit(c, 0x1e621800) # f64 /
+  emit(c, 0x1e621821) # f64 /
+  emit(c, 0x9100058c) # add immediate
+  emit(c, 0x14000000) # b float.high.34
+  mark(c, 24i, 1412i) # float.low.35
+  emit(c, 0x1e632020) # fcmp
+  emit(c, 0x5400004b) # b.inverse +8
+  emit(c, 0x14000000) # b float.round.37
+  emit(c, 0x1e620800) # f64 *
+  emit(c, 0x1e620821) # f64 *
+  emit(c, 0xd100058c) # sub immediate
+  emit(c, 0x14000000) # b float.low.35
+  mark(c, 25i, 1440i) # float.normal.36
+  emit(c, 0xd280000c) # movz x12
+  mark(c, 27i, 1444i) # float.round.37
+  emit(c, 0xf90003ec) # str x12
+  emit(c, 0xd2800009) # movz x9
+  emit(c, 0xf2d09009) # movk x9
+  emit(c, 0xf2e825c9) # movk x9
+  emit(c, 0x9e670121) # fmov d,x bits
+  emit(c, 0x1e610800) # f64 *
+  emit(c, 0x9e600000) # fcvtns x0,d0
+  emit(c, 0x94000000) # bl runtime.number
+  emit(c, 0xf94003ec) # ldr x12
+  emit(c, 0xb500004c) # cb.inverse +8
+  emit(c, 0x14000000) # b float.done.38
+  emit(c, 0x90000000) # adrp string.39
+  emit(c, 0x91000000) # add page offset
+  emit(c, 0xd2800021) # movz x1
+  emit(c, 0xaa0103e2) # mov register
+  emit(c, 0xaa0003e1) # mov register
+  emit(c, 0xd2800020) # movz x0
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xf94003e0) # ldr x0
+  emit(c, 0x94000000) # bl runtime.integer_print
+  mark(c, 22i, 1524i) # float.done.38
+  emit(c, 0xf9401bfd) # ldr x29
+  emit(c, 0xf9401ffe) # ldr x30
+  emit(c, 0x910103ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 72i, 1540i) # runtime.validate
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400809) # ldr x9
+  emit(c, 0xeb01013f) # cmp registers
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400008) # ldr x8
+  emit(c, 0xb5000048) # cb.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400409) # ldr x9
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 57i, 1584i) # runtime.bounds
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400809) # ldr x9
+  emit(c, 0xeb01013f) # cmp registers
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400008) # ldr x8
+  emit(c, 0xb5000048) # cb.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400409) # ldr x9
+  emit(c, 0xeb09005f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.bounds
+  emit(c, 0xcb02012a) # sub registers
+  emit(c, 0xeb0a007f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.bounds
+  emit(c, 0x8b020100) # add registers
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 56i, 1660i) # runtime.alloc
+  emit(c, 0xf100001f) # cmp immediate
+  emit(c, 0x5400004c) # b.inverse +8
+  emit(c, 0x14000000) # b error.size
+  emit(c, 0xd2800009) # movz x9
+  emit(c, 0xf2a80009) # movk x9
+  emit(c, 0xeb09001f) # cmp registers
+  emit(c, 0x54000049) # b.inverse +8
+  emit(c, 0x14000000) # b error.size
+  emit(c, 0xd10103ff) # sub immediate
+  emit(c, 0xf9001bfd) # str x29
+  emit(c, 0xf9001ffe) # str x30
+  emit(c, 0x9100c3fd) # add immediate
+  emit(c, 0xf90003e0) # str x0
+  emit(c, 0xb400005b) # cb.inverse +8
+  emit(c, 0x14000000) # b alloc.scan.40
+  emit(c, 0xd2900001) # movz x1
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd2800062) # movz x2
+  emit(c, 0xd2820043) # movz x3
+  emit(c, 0xd29fffe4) # movz x4
+  emit(c, 0xf2bfffe4) # movk x4
+  emit(c, 0xf2dfffe4) # movk x4
+  emit(c, 0xf2ffffe4) # movk x4
+  emit(c, 0xd2800005) # movz x5
+  emit(c, 0xd28018b0) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.memory
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b error.memory
+  emit(c, 0xaa0003fb) # mov register
+  mark(c, 4i, 1784i) # alloc.scan.40
+  emit(c, 0xaa1b03e9) # mov register
+  emit(c, 0xd290000a) # movz x10
+  emit(c, 0x8b0a036a) # add registers
+  emit(c, 0xd29fffed) # movz x13
+  emit(c, 0xf2bfffed) # movk x13
+  emit(c, 0xf2dfffed) # movk x13
+  emit(c, 0xf2ffffed) # movk x13
+  mark(c, 2i, 1812i) # alloc.loop.41
+  emit(c, 0xeb0a013f) # cmp registers
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.memory
+  emit(c, 0xf940012b) # ldr x11
+  emit(c, 0xb400004b) # cb.inverse +8
+  emit(c, 0x14000000) # b alloc.next.42
+  emit(c, 0xf940092c) # ldr x12
+  emit(c, 0xeb0d019f) # cmp registers
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b alloc.found.43
+  mark(c, 3i, 1852i) # alloc.next.42
+  emit(c, 0x91008129) # add immediate
+  emit(c, 0x14000000) # b alloc.loop.41
+  mark(c, 1i, 1860i) # alloc.found.43
+  emit(c, 0xf90007e9) # str x9
+  emit(c, 0xf94003e1) # ldr x1
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd2800062) # movz x2
+  emit(c, 0xd2820043) # movz x3
+  emit(c, 0xd29fffe4) # movz x4
+  emit(c, 0xf2bfffe4) # movk x4
+  emit(c, 0xf2dfffe4) # movk x4
+  emit(c, 0xf2ffffe4) # movk x4
+  emit(c, 0xd2800005) # movz x5
+  emit(c, 0xd28018b0) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.memory
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b error.memory
+  emit(c, 0xf94007e9) # ldr x9
+  emit(c, 0xf94003ea) # ldr x10
+  emit(c, 0xf9000120) # str x0
+  emit(c, 0xf900052a) # str x10
+  emit(c, 0xf9400921) # ldr x1
+  emit(c, 0x91000421) # add immediate
+  emit(c, 0xf9000921) # str x1
+  emit(c, 0xaa0903e0) # mov register
+  emit(c, 0xf9401bfd) # ldr x29
+  emit(c, 0xf9401ffe) # ldr x30
+  emit(c, 0x910103ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 61i, 1972i) # runtime.free
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400809) # ldr x9
+  emit(c, 0xeb01013f) # cmp registers
+  emit(c, 0x54000040) # b.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400008) # ldr x8
+  emit(c, 0xb5000048) # cb.inverse +8
+  emit(c, 0x14000000) # b error.freed
+  emit(c, 0xf9400409) # ldr x9
+  emit(c, 0xd10043ff) # sub immediate
+  emit(c, 0xf90003e0) # str x0
+  emit(c, 0xaa0803e0) # mov register
+  emit(c, 0xaa0903e1) # mov register
+  emit(c, 0xd2800930) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.memory
+  emit(c, 0xf94003e9) # ldr x9
+  emit(c, 0xf900013f) # str x31
+  emit(c, 0x910043ff) # add immediate
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd2800001) # movz x1
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 67i, 2068i) # runtime.rawclock
+  emit(c, 0xd10043ff) # sub immediate
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd2800001) # movz x1
+  emit(c, 0x910003e2) # add immediate
+  emit(c, 0xd2800e90) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  emit(c, 0xf94003e0) # ldr x0
+  emit(c, 0x910043ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 63i, 2112i) # runtime.muldiv
+  emit(c, 0xb5000043) # cb.inverse +8
+  emit(c, 0x14000000) # b error.time
+  emit(c, 0x9bc27c05) # umulh
+  emit(c, 0x9b027c04) # mul
+  emit(c, 0xeb0300bf) # cmp registers
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  emit(c, 0xd2800006) # movz x6
+  emit(c, 0xd2800807) # movz x7
+  mark(c, 46i, 2148i) # muldiv.loop.44
+  emit(c, 0x8b0600c6) # add registers
+  emit(c, 0xd37ffc88) # lsr
+  emit(c, 0x8b040084) # add registers
+  emit(c, 0xab0500a5) # adds (checked decimal addition)
+  emit(c, 0xaa0800a5) # bor
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b muldiv.subtract.45
+  emit(c, 0xeb0300bf) # cmp registers
+  emit(c, 0x54000042) # b.inverse +8
+  emit(c, 0x14000000) # b muldiv.next.46
+  mark(c, 48i, 2188i) # muldiv.subtract.45
+  emit(c, 0xcb0300a5) # sub registers
+  emit(c, 0x910004c6) # add immediate
+  mark(c, 47i, 2196i) # muldiv.next.46
+  emit(c, 0xd10004e7) # sub immediate
+  emit(c, 0xb4000047) # cb.inverse +8
+  emit(c, 0x14000000) # b muldiv.loop.44
+  emit(c, 0xaa0603e0) # mov register
+  emit(c, 0xaa0503e1) # mov register
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 58i, 2220i) # runtime.clock
+  emit(c, 0xd10043ff) # sub immediate
+  emit(c, 0xf90003fd) # str x29
+  emit(c, 0xf90007fe) # str x30
+  emit(c, 0x910003fd) # add immediate
+  emit(c, 0x94000000) # bl runtime.rawclock
+  emit(c, 0xcb170000) # sub registers
+  emit(c, 0xaa1903e2) # mov register
+  emit(c, 0xaa1803e3) # mov register
+  emit(c, 0x94000000) # bl runtime.muldiv
+  emit(c, 0xf100001f) # cmp immediate
+  emit(c, 0x5400004a) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  emit(c, 0xd2800001) # movz x1
+  emit(c, 0xf94003fd) # ldr x29
+  emit(c, 0xf94007fe) # ldr x30
+  emit(c, 0x910043ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 68i, 2288i) # runtime.sleep
+  emit(c, 0xd280000c) # movz x12
+  emit(c, 0x14000000) # b runtime.sleep_common
+  mark(c, 70i, 2296i) # runtime.sleep_until
+  emit(c, 0xd280002c) # movz x12
+  mark(c, 69i, 2300i) # runtime.sleep_common
+  emit(c, 0xf100001f) # cmp immediate
+  emit(c, 0x5400004a) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  emit(c, 0xd100c3ff) # sub immediate
+  emit(c, 0xf90013fd) # str x29
+  emit(c, 0xf90017fe) # str x30
+  emit(c, 0x910083fd) # add immediate
+  emit(c, 0xf9000bec) # str x12
+  emit(c, 0xaa1803e2) # mov register
+  emit(c, 0xaa1903e3) # mov register
+  emit(c, 0x94000000) # bl runtime.muldiv
+  emit(c, 0xb5000041) # cb.inverse +8
+  emit(c, 0x14000000) # b sleep.exact.47
+  emit(c, 0xd2800029) # movz x9
+  emit(c, 0xab090000) # adds (checked decimal addition)
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  mark(c, 76i, 2368i) # sleep.exact.47
+  emit(c, 0xf90003e0) # str x0
+  emit(c, 0xf9400bec) # ldr x12
+  emit(c, 0xb400004c) # cb.inverse +8
+  emit(c, 0x14000000) # b sleep.absolute.48
+  emit(c, 0x94000000) # bl runtime.rawclock
+  emit(c, 0xf94003e2) # ldr x2
+  emit(c, 0xab020000) # adds (checked decimal addition)
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  emit(c, 0x14000000) # b sleep.ready.49
+  mark(c, 74i, 2408i) # sleep.absolute.48
+  emit(c, 0xab170000) # adds (checked decimal addition)
+  emit(c, 0x54000043) # b.inverse +8
+  emit(c, 0x14000000) # b error.time
+  mark(c, 77i, 2420i) # sleep.ready.49
+  emit(c, 0xf90003e0) # str x0
+  mark(c, 78i, 2424i) # sleep.wait.50
+  emit(c, 0xf94003e0) # ldr x0
+  emit(c, 0xd29ff4d0) # movz x16
+  emit(c, 0xf2bffff0) # movk x16
+  emit(c, 0xf2dffff0) # movk x16
+  emit(c, 0xf2fffff0) # movk x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xb5000040) # cb.inverse +8
+  emit(c, 0x14000000) # b sleep.done.51
+  emit(c, 0xf100381f) # cmp immediate
+  emit(c, 0x54000041) # b.inverse +8
+  emit(c, 0x14000000) # b sleep.wait.50
+  emit(c, 0x14000000) # b error.time
+  mark(c, 75i, 2472i) # sleep.done.51
+  emit(c, 0xd2800000) # movz x0
+  emit(c, 0xd2800001) # movz x1
+  emit(c, 0xf94013fd) # ldr x29
+  emit(c, 0xf94017fe) # ldr x30
+  emit(c, 0x9100c3ff) # add immediate
+  emit(c, 0xd65f03c0) # ret
+  mark(c, 10i, 2496i) # error.float
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.52
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd28005c2) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 15i, 2532i) # error.overflow
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.53
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800482) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 16i, 2568i) # error.precision
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.54
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800e22) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 21i, 2604i) # error.zero
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.55
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800482) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 9i, 2640i) # error.exit
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.56
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd28007c2) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 13i, 2676i) # error.integer
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.57
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800822) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 12i, 2712i) # error.int_overflow
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.58
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800562) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 7i, 2748i) # error.bounds
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.59
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800702) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 11i, 2784i) # error.freed
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.60
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd28006e2) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 14i, 2820i) # error.memory
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.61
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800a42) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 18i, 2856i) # error.size
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.62
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd28007e2) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 20i, 2892i) # error.time
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.63
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800902) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 17i, 2928i) # error.shift
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.64
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd28005a2) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 8i, 2964i) # error.byte
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.65
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800922) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 6i, 3000i) # error.assert
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.66
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800482) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  mark(c, 19i, 3036i) # error.stack
+  emit(c, 0xd2800040) # movz x0
+  emit(c, 0x90000001) # adrp string.67
+  emit(c, 0x91000021) # add page offset
+  emit(c, 0xd2800722) # movz x2
+  emit(c, 0x94000000) # bl runtime.write
+  emit(c, 0xd28008c0) # movz x0
+  emit(c, 0xd2800030) # movz x16
+  emit(c, 0xd4001001) # svc #0x80
+  emit(c, 0xd4200000) # brk #0
+  constant(c, 79i, "0123456789abcdef")
+  constant(c, 80i, "e")
+  constant(c, 81i, "APO runtime error: non-finite floating result\n")
+  constant(c, 82i, "APO runtime error: decimal overflow\n")
+  constant(c, 83i, "APO runtime error: result needs more than 6 decimal places\nHint: use float(a) / float(b) for approximate ratios.\n")
+  constant(c, 84i, "APO runtime error: division by zero\n")
+  constant(c, 85i, "APO runtime error: exit code must be an integer from 0 to 255\n")
+  constant(c, 86i, "APO runtime error: integer value required (no implicit rounding)\n")
+  constant(c, 87i, "APO runtime error: 64-bit integer overflow\n")
+  constant(c, 88i, "APO runtime error: buffer or string index out of bounds\n")
+  constant(c, 89i, "APO runtime error: buffer already freed or stale alias\n")
+  constant(c, 90i, "APO runtime error: memory allocation/release failed or 1024 live buffers exceeded\n")
+  constant(c, 91i, "APO runtime error: allocation size must be 1..1073741824 bytes\n")
+  constant(c, 92i, "APO runtime error: invalid time, clock failure, or timer range exceeded\n")
+  constant(c, 93i, "APO runtime error: shift count must be 0..63\n")
+  constant(c, 94i, "APO runtime error: value does not fit the selected unsigned memory width\n")
+  constant(c, 95i, "APO runtime error: assertion failed\n")
+  constant(c, 96i, "APO runtime error: function stack limit exceeded (1 MiB)\n")
+  fixup(c, 0i, 0i, 55i)
+  fixup(c, 20i, 0i, 100i)
+  fixup(c, 48i, 0i, 101i)
+  fixup(c, 56i, 0i, 102i)
+  fixup(c, 72i, 0i, 103i)
+  fixup(c, 88i, 0i, 103i)
+  fixup(c, 148i, 0i, 51i)
+  fixup(c, 184i, 0i, 50i)
+  fixup(c, 204i, 0i, 28i)
+  fixup(c, 216i, 0i, 29i)
+  fixup(c, 252i, 0i, 28i)
+  fixup(c, 296i, 0i, 50i)
+  fixup(c, 304i, 0i, 52i)
+  fixup(c, 332i, 0i, 73i)
+  fixup(c, 392i, 0i, 41i)
+  fixup(c, 436i, 0i, 39i)
+  fixup(c, 444i, 0i, 40i)
+  fixup(c, 472i, 0i, 73i)
+  fixup(c, 520i, 2i, 79i)
+  fixup(c, 560i, 0i, 38i)
+  fixup(c, 600i, 0i, 73i)
+  fixup(c, 628i, 0i, 98i)
+  fixup(c, 636i, 0i, 99i)
+  fixup(c, 656i, 0i, 98i)
+  fixup(c, 676i, 0i, 97i)
+  fixup(c, 720i, 0i, 42i)
+  fixup(c, 736i, 0i, 44i)
+  fixup(c, 748i, 0i, 49i)
+  fixup(c, 756i, 0i, 49i)
+  fixup(c, 780i, 0i, 30i)
+  fixup(c, 800i, 0i, 34i)
+  fixup(c, 824i, 0i, 31i)
+  fixup(c, 844i, 0i, 35i)
+  fixup(c, 864i, 0i, 16i)
+  fixup(c, 880i, 0i, 15i)
+  fixup(c, 888i, 0i, 53i)
+  fixup(c, 916i, 0i, 15i)
+  fixup(c, 940i, 0i, 15i)
+  fixup(c, 964i, 0i, 21i)
+  fixup(c, 992i, 0i, 43i)
+  fixup(c, 1008i, 0i, 45i)
+  fixup(c, 1020i, 0i, 5i)
+  fixup(c, 1036i, 0i, 32i)
+  fixup(c, 1056i, 0i, 36i)
+  fixup(c, 1088i, 0i, 33i)
+  fixup(c, 1108i, 0i, 37i)
+  fixup(c, 1128i, 0i, 16i)
+  fixup(c, 1144i, 0i, 15i)
+  fixup(c, 1152i, 0i, 54i)
+  fixup(c, 1180i, 0i, 15i)
+  fixup(c, 1204i, 0i, 15i)
+  fixup(c, 1244i, 0i, 10i)
+  fixup(c, 1292i, 0i, 25i)
+  fixup(c, 1324i, 0i, 26i)
+  fixup(c, 1356i, 0i, 25i)
+  fixup(c, 1392i, 0i, 24i)
+  fixup(c, 1408i, 0i, 23i)
+  fixup(c, 1420i, 0i, 27i)
+  fixup(c, 1436i, 0i, 24i)
+  fixup(c, 1472i, 0i, 65i)
+  fixup(c, 1484i, 0i, 22i)
+  fixup(c, 1488i, 2i, 80i)
+  fixup(c, 1512i, 0i, 73i)
+  fixup(c, 1520i, 0i, 62i)
+  fixup(c, 1544i, 0i, 11i)
+  fixup(c, 1560i, 0i, 11i)
+  fixup(c, 1572i, 0i, 11i)
+  fixup(c, 1588i, 0i, 11i)
+  fixup(c, 1604i, 0i, 11i)
+  fixup(c, 1616i, 0i, 11i)
+  fixup(c, 1632i, 0i, 7i)
+  fixup(c, 1648i, 0i, 7i)
+  fixup(c, 1668i, 0i, 18i)
+  fixup(c, 1688i, 0i, 18i)
+  fixup(c, 1716i, 0i, 4i)
+  fixup(c, 1768i, 0i, 14i)
+  fixup(c, 1776i, 0i, 14i)
+  fixup(c, 1820i, 0i, 14i)
+  fixup(c, 1832i, 0i, 3i)
+  fixup(c, 1848i, 0i, 1i)
+  fixup(c, 1856i, 0i, 2i)
+  fixup(c, 1912i, 0i, 14i)
+  fixup(c, 1920i, 0i, 14i)
+  fixup(c, 1976i, 0i, 11i)
+  fixup(c, 1992i, 0i, 11i)
+  fixup(c, 2004i, 0i, 11i)
+  fixup(c, 2040i, 0i, 14i)
+  fixup(c, 2096i, 0i, 20i)
+  fixup(c, 2116i, 0i, 20i)
+  fixup(c, 2136i, 0i, 20i)
+  fixup(c, 2172i, 0i, 48i)
+  fixup(c, 2184i, 0i, 47i)
+  fixup(c, 2204i, 0i, 46i)
+  fixup(c, 2236i, 0i, 67i)
+  fixup(c, 2252i, 0i, 63i)
+  fixup(c, 2264i, 0i, 20i)
+  fixup(c, 2292i, 0i, 69i)
+  fixup(c, 2308i, 0i, 20i)
+  fixup(c, 2340i, 0i, 63i)
+  fixup(c, 2348i, 0i, 76i)
+  fixup(c, 2364i, 0i, 20i)
+  fixup(c, 2380i, 0i, 74i)
+  fixup(c, 2384i, 0i, 67i)
+  fixup(c, 2400i, 0i, 20i)
+  fixup(c, 2404i, 0i, 77i)
+  fixup(c, 2416i, 0i, 20i)
+  fixup(c, 2452i, 0i, 75i)
+  fixup(c, 2464i, 0i, 78i)
+  fixup(c, 2468i, 0i, 20i)
+  fixup(c, 2500i, 2i, 81i)
+  fixup(c, 2512i, 0i, 73i)
+  fixup(c, 2536i, 2i, 82i)
+  fixup(c, 2548i, 0i, 73i)
+  fixup(c, 2572i, 2i, 83i)
+  fixup(c, 2584i, 0i, 73i)
+  fixup(c, 2608i, 2i, 84i)
+  fixup(c, 2620i, 0i, 73i)
+  fixup(c, 2644i, 2i, 85i)
+  fixup(c, 2656i, 0i, 73i)
+  fixup(c, 2680i, 2i, 86i)
+  fixup(c, 2692i, 0i, 73i)
+  fixup(c, 2716i, 2i, 87i)
+  fixup(c, 2728i, 0i, 73i)
+  fixup(c, 2752i, 2i, 88i)
+  fixup(c, 2764i, 0i, 73i)
+  fixup(c, 2788i, 2i, 89i)
+  fixup(c, 2800i, 0i, 73i)
+  fixup(c, 2824i, 2i, 90i)
+  fixup(c, 2836i, 0i, 73i)
+  fixup(c, 2860i, 2i, 91i)
+  fixup(c, 2872i, 0i, 73i)
+  fixup(c, 2896i, 2i, 92i)
+  fixup(c, 2908i, 0i, 73i)
+  fixup(c, 2932i, 2i, 93i)
+  fixup(c, 2944i, 0i, 73i)
+  fixup(c, 2968i, 2i, 94i)
+  fixup(c, 2980i, 0i, 73i)
+  fixup(c, 3004i, 2i, 95i)
+  fixup(c, 3016i, 0i, 73i)
+  fixup(c, 3040i, 2i, 96i)
+  fixup(c, 3052i, 0i, 73i)
+  put(c, 5i, 104i) # next available label
+end
+fn rtcall(c: pointer, name: string): void
+  a_branch(c, runtime_id(name), true)
+end
+fn rtcond(c: pointer, cond: int, name: string): void
+  a_condition(c, cond, runtime_id(name))
+end
+fn rtzero(c: pointer, reg: int, name: string, nonzero: bool): void
+  a_zero(c, reg, runtime_id(name), nonzero)
+end
+fn finite_value(c: pointer): void
+  a_right(c, 9i, 0i, 52i, false)
+  a_value(c, 10i, 2047i)
+  a_op3(c, 0x8A000000, 9i, 9i, 10i)
+  a_cmpi(c, 9i, 2047i)
+  rtcond(c, 0i, "error.float")
+end
+fn argument_type(e: pointer, index: int): int
+  return get(list_get(getp(e, 9i), index), 1i)
+end
+fn unscale(c: pointer, reg: int, datatype: int): void
+  if datatype = 3i then
+    return
+  end
+  a_value(c, 9i, 1000000i)
+  a_op3(c, 0x9AC00C00, 10i, reg, 9i)
+  a_msub(c, 11i, 10i, 9i, reg)
+  rtzero(c, 11i, "error.integer", true)
+  a_mov(c, reg, 10i)
+end
+fn to_number(c: pointer, reg: int): void
+  a_value(c, 9i, 1000000i)
+  a_op3(c, 0x9B407C00, 10i, reg, 9i)
+  a_op3(c, 0x9B007C00, reg, reg, 9i)
+  a_right(c, 11i, reg, 63i, true)
+  a_cmp(c, 10i, 11i)
+  rtcond(c, 1i, "error.overflow")
+end
+fn unsigned_width(c: pointer, reg: int, width: int): void
+  limit = 255i
+  if width = 2i then
+    limit = 65535i
+  end
+  if width = 4i then
+    limit = 4294967295i
+  end
+  a_value(c, 9i, limit)
+  a_cmp(c, reg, 9i)
+  rtcond(c, 8i, "error.byte")
+end
+fn finish_intrinsic(c: pointer, e: pointer): void
+  if get(e, 1i) = 6i then
+    a_value(c, 0i, 0i)
+  end
+  a_value(c, 1i, 0i)
+end
+fn write_value(c: pointer): void
+  a_mov(c, 2i, 1i)
+  a_mov(c, 1i, 0i)
+  a_value(c, 0i, 1i)
+  rtcall(c, "runtime.write")
+end
+# Checked, clipped DDA kernel. Register-resident pixel loop; no per-pixel heap
+# handle lookup or language-function stack spills. FP operations are NOT fused.
+# Public contract: canvas header; ax,ay,bx,by in [-1,width/height+1]; nonnegative
+# finite inverse depths <= 1e6; 1..width+height+2 samples; unsigned RGBA32.
+fn emit_raster_line(c: pointer, e: pointer): void
+  # Arguments were evaluated once, left-to-right, into nine 16-byte pairs.
+  j = 0i
+  while j < 6i do
+    a_load(c, 9i, 31i, (7i - j) * 16i)
+    a_fmov(c, j, 9i, true)
+    j = j + 1i
+  end
+  a_load(c, 6i, 31i, 16i)
+  a_load(c, 7i, 31i, 0i)
+  a_load(c, 0i, 31i, 128i)
+  a_load(c, 1i, 31i, 136i)
+  a_stack(c, 144i, false)
+  rtcall(c, "runtime.validate")
+  # X8=live allocation, X9=length. Reject a short header before any field load.
+  a_cmpi(c, 9i, 64i)
+  rtcond(c, 3i, "error.bounds")
+  a_load(c, 2i, 8i, 0i)
+  a_load(c, 3i, 8i, 8i)
+  a_load(c, 4i, 8i, 16i)
+  a_load(c, 13i, 8i, 24i)
+  a_value(c, 14i, 0x41504f3344323030)
+  a_cmp(c, 13i, 14i)
+  rtcond(c, 1i, "error.bounds")
+  a_cmpi(c, 2i, 16i)
+  rtcond(c, 3i, "error.bounds")
+  a_cmpi(c, 2i, 2048i)
+  rtcond(c, 8i, "error.bounds")
+  a_cmpi(c, 3i, 16i)
+  rtcond(c, 3i, "error.bounds")
+  a_cmpi(c, 3i, 2048i)
+  rtcond(c, 8i, "error.bounds")
+  a_op3(c, 0x9B007C00, 13i, 2i, 3i)
+  a_value(c, 14i, 64i)
+  a_addshift(c, 14i, 14i, 13i, 2i)
+  a_cmp(c, 4i, 14i)
+  rtcond(c, 3i, "error.bounds")
+  a_value(c, 15i, 0i)
+  a_addshift(c, 15i, 15i, 13i, 3i)
+  a_cmp(c, 9i, 15i)
+  rtcond(c, 3i, "error.bounds")
+  a_sub(c, 9i, 9i, 15i)
+  a_cmp(c, 4i, 9i)
+  rtcond(c, 8i, "error.bounds")
+  a_cmpi(c, 6i, 1i)
+  rtcond(c, 3i, "error.bounds")
+  a_add(c, 15i, 2i, 3i)
+  a_addi(c, 15i, 15i, 2i)
+  a_cmp(c, 6i, 15i)
+  rtcond(c, 8i, "error.bounds")
+  a_value(c, 14i, 0xffffffff)
+  a_cmp(c, 7i, 14i)
+  rtcond(c, 8i, "error.byte")
+  a_addi(c, 0i, 8i, 64i)
+  a_add(c, 1i, 8i, 4i)
+  # Validate finite endpoint ranges before float-to-integer conversion.
+  a_fconstant(c, 16i, 0xbff0000000000000) # -1.0
+  a_addi(c, 14i, 2i, 1i)
+  emit(c, 0x9E620000 + shl(14i, 5i) + 17i) # scvtf d17,x14
+  a_addi(c, 14i, 3i, 1i)
+  emit(c, 0x9E620000 + shl(14i, 5i) + 18i)
+  j = 0i
+  while j < 4i do
+    a_fcmp(c, j, 16i)
+    rtcond(c, 6i, "error.float")
+    rtcond(c, 11i, "error.bounds")
+    a_fcmp(c, j, 17i + (j % 2i))
+    rtcond(c, 12i, "error.bounds")
+    j = j + 1i
+  end
+  a_fconstant(c, 16i, 0i)
+  a_fconstant(c, 17i, 0x412e848000000000) # 1e6
+  j = 4i
+  while j < 6i do
+    a_fcmp(c, j, 16i)
+    rtcond(c, 6i, "error.float")
+    rtcond(c, 11i, "error.bounds")
+    a_fcmp(c, j, 17i)
+    rtcond(c, 12i, "error.bounds")
+    j = j + 1i
+  end
+  a_fbinary(c, 2i, 2i, 0i, "-")
+  a_fbinary(c, 3i, 3i, 1i, "-")
+  a_fbinary(c, 5i, 5i, 4i, "-")
+  emit(c, 0x9E620000 + shl(6i, 5i) + 6i)
+  a_fconstant(c, 16i, 0x3fe0000000000000) # 0.5
+  a_value(c, 10i, 0i)
+  loop = fresh(c)
+  skip = fresh(c)
+  label_here(c, loop)
+  emit(c, 0x9E620000 + shl(10i, 5i) + 7i)
+  a_fbinary(c, 7i, 7i, 6i, "/")
+  a_fbinary(c, 17i, 2i, 7i, "*")
+  a_fbinary(c, 17i, 0i, 17i, "+")
+  a_fbinary(c, 17i, 17i, 16i, "+")
+  emit(c, 0x1E654000 + shl(17i, 5i) + 17i) # frintm d17,d17
+  emit(c, 0x9E780000 + shl(17i, 5i) + 4i) # fcvtzs x4,d17
+  a_cmp(c, 4i, 2i)
+  a_condition(c, 2i, skip) # unsigned also rejects negative X
+  a_fbinary(c, 18i, 3i, 7i, "*")
+  a_fbinary(c, 18i, 1i, 18i, "+")
+  a_fbinary(c, 18i, 18i, 16i, "+")
+  emit(c, 0x1E654000 + shl(18i, 5i) + 18i)
+  emit(c, 0x9E780000 + shl(18i, 5i) + 5i)
+  a_cmp(c, 5i, 3i)
+  a_condition(c, 2i, skip)
+  a_fbinary(c, 19i, 5i, 7i, "*")
+  a_fbinary(c, 19i, 4i, 19i, "+")
+  emit(c, 0x9B000000 + shl(2i, 16i) + shl(4i, 10i) + shl(5i, 5i) + 9i) # madd x9,x5,x2,x4
+  a_addshift(c, 12i, 1i, 9i, 3i)
+  emit(c, 0xFD400000 + shl(12i, 5i) + 20i) # ldr d20,[x12]
+  a_fcmp(c, 19i, 20i)
+  a_condition(c, 11i, skip) # lower OR unordered => no store
+  emit(c, 0xFD000000 + shl(12i, 5i) + 19i)
+  a_addshift(c, 11i, 0i, 9i, 2i)
+  emit(c, 0xB9000000 + shl(11i, 5i) + 7i)
+  label_here(c, skip)
+  a_addi(c, 10i, 10i, 1i)
+  a_cmp(c, 10i, 6i)
+  a_condition(c, 9i, loop)
+  finish_intrinsic(c, e)
+end
+
+# Arguments have already been evaluated left to right and pushed in 16-byte pairs.
+fn intrinsic(c: pointer, e: pointer): void
+  n = gets(e, 4i)
+  count = get(e, 10i)
+  if n = "_parallel" then
+    # count args: callback, data, count, lanes, apply, queue
+    a_load(c, 0i, 31i, 64i)
+    a_load(c, 1i, 31i, 72i)
+    rtcall(c, "runtime.validate")
+    a_load(c, 3i, 31i, 80i)
+    a_load(c, 16i, 31i, 16i)
+    rtzero(c, 3i, "error.bounds", false)
+    rtzero(c, 16i, "error.bounds", false)
+    a_load(c, 10i, 31i, 48i)
+    a_load(c, 11i, 31i, 32i)
+    a_cmpi(c, 10i, 0i)
+    rtcond(c, 11i, "error.bounds")
+    a_cmpi(c, 11i, 1i)
+    rtcond(c, 11i, "error.bounds")
+    a_cmpi(c, 11i, 64i)
+    rtcond(c, 12i, "error.bounds")
+    a_load(c, 1i, 31i, 0i)
+    a_stack(c, 48i, true)
+    a_load(c, 12i, 31i, 112i)
+    a_store(c, 12i, 31i, 0i)
+    a_load(c, 12i, 31i, 120i)
+    a_store(c, 12i, 31i, 8i)
+    a_store(c, 27i, 31i, 16i)
+    a_store(c, 10i, 31i, 24i)
+    a_store(c, 11i, 31i, 32i)
+    a_mov(c, 0i, 11i)
+    a_addi(c, 2i, 31i, 0i)
+    emit(c, 0xD63F0200)
+    a_stack(c, 144i, false)
+    a_value(c, 0i, 0i)
+    a_value(c, 1i, 0i)
+    return
+  end
+  if n = "_raster_line" then
+    emit_raster_line(c, e)
+    return
+  end
+  if n = "dlopen" or n = "dlsym" then
+    field = 25i
+    if n = "dlsym" then
+      field = 26i
+    end
+    if get(c, field) = 0i then
+      put(c, field, fresh(c))
+    end
+    a_load(c, 0i, 31i, 16i)
+    a_load(c, 1i, 31i, 0i)
+    a_address(c, 16i, get(c, field))
+    a_load(c, 16i, 16i, 0i)
+    a_stack(c, 32i, false)
+    emit(c, 0xD63F0200)
+    a_value(c, 1i, 0i)
+    return
+  end
+  if starts(n, "ccall") then
+    a_load(c, 16i, 31i, (count - 1i) * 16i)
+    gp = 0i
+    fp = 0i
+    j = 1i
+    while j < count do
+      if argument_type(e, j) = 7i then
+        a_load(c, 9i, 31i, (count - j - 1i) * 16i)
+        a_fmov(c, fp, 9i, true)
+        fp = fp + 1i
+      else
+        a_load(c, gp, 31i, (count - j - 1i) * 16i)
+        gp = gp + 1i
+      end
+      j = j + 1i
+    end
+    a_stack(c, count * 16i, false)
+    rtzero(c, 16i, "error.bounds", false)
+    emit(c, 0xD63F0200) # blr x16: native C ABI, never variadic ABI.
+    if starts(n, "ccallf") then
+      index = 0i
+      if int(len(n)) = 7i then
+        index = byte_at(n, 6i) - 48i
+      end
+      a_fmov(c, 0i, index, false)
+    end
+    if n = "ccallv" then
+      a_value(c, 0i, 0i)
+    end
+    a_value(c, 1i, 0i)
+    return
+  end
+  if n = "syscall" or n = "asm32" then
+    if n = "syscall" then
+      a_load(c, 16i, 31i, (count - 1i) * 16i)
+    else
+      j = 0i
+      while j < 6i do
+        a_value(c, j, 0i)
+        j = j + 1i
+      end
+    end
+    i = 1i
+    while i < count do
+      a_load(c, i - 1i, 31i, (count - i - 1i) * 16i)
+      i = i + 1i
+    end
+    a_stack(c, count * 16i, false)
+    if n = "syscall" then
+      emit(c, 0xD4001001)
+      done = fresh(c)
+      a_condition(c, 3i, done)
+      a_neg(c, 0i, 0i, false)
+      label_here(c, done)
+    else
+      emit(c, get(list_get(getp(e, 9i), 0i), 3i))
+    end
+    a_value(c, 1i, 0i)
+    return
+  end
+  i = 0i
+  while i < count do
+    a_load(c, i * 2i, 31i, (count - i - 1i) * 16i)
+    a_load(c, i * 2i + 1i, 31i, (count - i - 1i) * 16i + 8i)
+    i = i + 1i
+  end
+  a_stack(c, count * 16i, false)
+  if n = "clock" or n = "sleep" or n = "sleep_until" then
+    if n = "clock" then
+      rtcall(c, "runtime.clock")
+    end
+    if n = "sleep" then
+      rtcall(c, "runtime.sleep")
+    end
+    if n = "sleep_until" then
+      rtcall(c, "runtime.sleep_until")
+    end
+    return
+  end
+  if n = "string_at" then
+    unscale(c, 2i, argument_type(e, 1i))
+    a_cmpi(c, 2i, 0i)
+    rtcond(c, 11i, "error.bounds")
+    a_mov(c, 1i, 2i)
+    return
+  end
+  if n = "arg" then
+    a_cmp(c, 0i, 19i)
+    rtcond(c, 2i, "error.bounds")
+    a_addshift(c, 9i, 20i, 0i, 3i)
+    a_load(c, 0i, 9i, 0i)
+    a_value(c, 1i, 0i)
+    loop = fresh(c)
+    done = fresh(c)
+    label_here(c, loop)
+    a_add(c, 9i, 0i, 1i)
+    a_width(c, 10i, 9i, 1i, true)
+    a_zero(c, 10i, done, false)
+    a_addi(c, 1i, 1i, 1i)
+    a_branch(c, loop, false)
+    label_here(c, done)
+    return
+  end
+  if n = "argc" or n = "envp" then
+    reg = 19i
+    if n = "envp" then
+      reg = 21i
+    end
+    a_mov(c, 0i, reg)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "float" then
+    t = argument_type(e, 0i)
+    if t != 7i then
+      emit(c, 0x9E620000)
+      if t = 0i then
+        a_fconstant(c, 1i, 0x412e848000000000)
+        a_fbinary(c, 0i, 0i, 1i, "/")
+      end
+      a_fmov(c, 0i, 0i, false)
+    end
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "float32_bits" then
+    finite_value(c)
+    a_fmov(c, 0i, 0i, true)
+    emit(c, 0x1E624000) # FCVT S0,D0 (explicit rounding)
+    emit(c, 0x1E260000) # FMOV W0,S0
+    a_mov(c, 14i, 0i)
+    emit(c, 0x1E22C000) # FCVT D0,S0
+    a_fmov(c, 0i, 0i, false)
+    finite_value(c)
+    a_mov(c, 0i, 14i)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "float32_from_bits" then
+    unsigned_width(c, 0i, 4i)
+    emit(c, 0x1E270000) # FMOV S0,W0
+    emit(c, 0x1E22C000) # FCVT D0,S0
+    a_fmov(c, 0i, 0i, false)
+    finite_value(c)
+    finish_intrinsic(c, e)
+    return
+  end
+  if starts(n, "atomic_") then
+    a_value(c, 3i, 8i)
+    rtcall(c, "runtime.bounds")
+    a_mov(c, 9i, 0i)
+    a_value(c, 10i, 7i)
+    a_op3(c, 0x8A000000, 10i, 9i, 10i)
+    rtzero(c, 10i, "error.bounds", true)
+    if n = "atomic_load" then
+      emit(c, 0xC8DFFD20) # LDAR X0,[X9]
+    end
+    if n = "atomic_store" then
+      emit(c, 0xC89FFD24) # STLR X4,[X9]
+    end
+    if n = "atomic_add" then
+      loop = fresh(c)
+      label_here(c, loop)
+      emit(c, 0xC85FFD20) # LDAXR X0,[X9]
+      a_add(c, 10i, 0i, 4i)
+      emit(c, 0xC80BFD2A) # STLXR W11,X10,[X9]
+      a_zero(c, 11i, loop, true)
+    end
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "float_bits" or n = "float_from_bits" then
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "sqrt" then
+    a_fmov(c, 0i, 0i, true)
+    emit(c, 0x1E61C000)
+    a_fmov(c, 0i, 0i, false)
+    finite_value(c)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "trunc" or (n = "int" and argument_type(e, 0i) = 7i) then
+    finite_value(c)
+    a_fmov(c, 0i, 0i, true)
+    a_fconstant(c, 1i, 0x43e0000000000000)
+    a_fcmp(c, 0i, 1i)
+    rtcond(c, 10i, "error.int_overflow")
+    a_fconstant(c, 1i, 0xc3e0000000000000)
+    a_fcmp(c, 0i, 1i)
+    rtcond(c, 4i, "error.int_overflow")
+    emit(c, 0x9E780000)
+    if n = "int" then
+      emit(c, 0x9E620001)
+      a_fcmp(c, 0i, 1i)
+      rtcond(c, 1i, "error.integer")
+    end
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "int" then
+    unscale(c, 0i, argument_type(e, 0i))
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "number" then
+    if argument_type(e, 0i) = 3i then
+      to_number(c, 0i)
+    end
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "floor" or n = "ceil" or n = "abs" then
+    t = get(e, 1i)
+    if t = 7i then
+      a_fmov(c, 0i, 0i, true)
+      op = 0x1E60C000
+      if n = "floor" then
+        op = 0x1E654000
+      end
+      if n = "ceil" then
+        op = 0x1E64C000
+      end
+      emit(c, op)
+      a_fmov(c, 0i, 0i, false)
+      finite_value(c)
+    else
+      done = fresh(c)
+      if n = "abs" then
+        a_cmpi(c, 0i, 0i)
+        a_condition(c, 10i, done)
+        a_neg(c, 0i, 0i, true)
+        err = "error.overflow"
+        if t = 3i then
+          err = "error.int_overflow"
+        end
+        rtcond(c, 6i, err)
+      else
+        a_value(c, 9i, 1000000i)
+        a_op3(c, 0x9AC00C00, 10i, 0i, 9i)
+        a_msub(c, 11i, 10i, 9i, 0i)
+        a_sub(c, 0i, 0i, 11i)
+        a_cmpi(c, 11i, 0i)
+        if n = "floor" then
+          a_condition(c, 10i, done)
+          a_op3(c, 0xEB000000, 0i, 0i, 9i)
+        else
+          a_condition(c, 13i, done)
+          a_op3(c, 0xAB000000, 0i, 0i, 9i)
+        end
+        rtcond(c, 6i, "error.overflow")
+      end
+      label_here(c, done)
+    end
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "alloc" then
+    unscale(c, 0i, argument_type(e, 0i))
+    rtcall(c, "runtime.alloc")
+    return
+  end
+  if n = "free" then
+    rtcall(c, "runtime.free")
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "len" then
+    if argument_type(e, 0i) = 4i then
+      rtcall(c, "runtime.validate")
+      a_mov(c, 0i, 9i)
+    else
+      a_mov(c, 0i, 1i)
+    end
+    to_number(c, 0i)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "slice" then
+    unscale(c, 2i, argument_type(e, 1i))
+    unscale(c, 4i, argument_type(e, 2i))
+    a_cmp(c, 2i, 1i)
+    rtcond(c, 8i, "error.bounds")
+    a_sub(c, 9i, 1i, 2i)
+    a_cmp(c, 4i, 9i)
+    rtcond(c, 8i, "error.bounds")
+    a_add(c, 0i, 0i, 2i)
+    a_mov(c, 1i, 4i)
+    return
+  end
+  if n = "view" then
+    unscale(c, 2i, argument_type(e, 1i))
+    unscale(c, 4i, argument_type(e, 2i))
+    a_mov(c, 3i, 4i)
+    rtcall(c, "runtime.bounds")
+    a_mov(c, 1i, 4i)
+    return
+  end
+  if n = "copy" then
+    unscale(c, 2i, argument_type(e, 1i))
+    unscale(c, 6i, argument_type(e, 3i))
+    unscale(c, 8i, argument_type(e, 4i))
+    a_mov(c, 13i, 8i)
+    a_mov(c, 3i, 13i)
+    rtcall(c, "runtime.bounds")
+    a_mov(c, 12i, 0i)
+    a_mov(c, 0i, 4i)
+    a_mov(c, 1i, 5i)
+    a_mov(c, 2i, 6i)
+    a_mov(c, 3i, 13i)
+    if argument_type(e, 2i) = 4i then
+      rtcall(c, "runtime.bounds")
+    else
+      a_cmp(c, 2i, 1i)
+      rtcond(c, 8i, "error.bounds")
+      a_sub(c, 9i, 1i, 2i)
+      a_cmp(c, 3i, 9i)
+      rtcond(c, 8i, "error.bounds")
+      a_add(c, 0i, 0i, 2i)
+    end
+    done = fresh(c)
+    forward = fresh(c)
+    back = fresh(c)
+    loop = fresh(c)
+    a_zero(c, 13i, done, false)
+    a_cmp(c, 12i, 0i)
+    a_condition(c, 3i, forward)
+    a_add(c, 0i, 0i, 13i)
+    a_add(c, 12i, 12i, 13i)
+    label_here(c, back)
+    a_subi(c, 0i, 0i, 1i)
+    a_subi(c, 12i, 12i, 1i)
+    a_width(c, 14i, 0i, 1i, true)
+    a_width(c, 14i, 12i, 1i, false)
+    a_subi(c, 13i, 13i, 1i)
+    a_zero(c, 13i, back, true)
+    a_branch(c, done, false)
+    label_here(c, forward)
+    label_here(c, loop)
+    a_width(c, 14i, 0i, 1i, true)
+    a_width(c, 14i, 12i, 1i, false)
+    a_addi(c, 0i, 0i, 1i)
+    a_addi(c, 12i, 12i, 1i)
+    a_subi(c, 13i, 13i, 1i)
+    a_zero(c, 13i, loop, true)
+    label_here(c, done)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "char_at" or n = "byte_at" then
+    unscale(c, 2i, argument_type(e, 1i))
+    a_cmp(c, 2i, 1i)
+    rtcond(c, 2i, "error.bounds")
+    a_add(c, 0i, 0i, 2i)
+    if n = "byte_at" then
+      a_width(c, 0i, 0i, 1i, true)
+      a_value(c, 1i, 0i)
+    else
+      a_value(c, 1i, 1i)
+    end
+    return
+  end
+  if n = "fill" or n = "fill32" or n = "fill64" or n = "fill_range" or n = "fill32_range" or n = "fill64_range" then
+    width = 1i
+    if n = "fill32" or n = "fill32_range" then
+      width = 4i
+    end
+    if n = "fill64" or n = "fill64_range" then
+      width = 8i
+    end
+    ranged = count = 4i
+    if ranged then
+      unscale(c, 2i, argument_type(e, 1i))
+      unscale(c, 4i, argument_type(e, 2i))
+      if width != 8i then
+        unscale(c, 6i, argument_type(e, 3i))
+        unsigned_width(c, 6i, width)
+      end
+      a_mov(c, 3i, 4i)
+      rtcall(c, "runtime.bounds")
+      a_mov(c, 8i, 0i)
+      a_mov(c, 9i, 4i)
+      a_mov(c, 2i, 6i)
+    else
+      if width != 8i then
+        unscale(c, 2i, argument_type(e, 1i))
+        unsigned_width(c, 2i, width)
+      end
+      rtcall(c, "runtime.validate")
+    end
+    if width > 1i then
+      a_value(c, 10i, width - 1i)
+      a_op3(c, 0x8A000000, 10i, 9i, 10i)
+      rtzero(c, 10i, "error.bounds", true)
+    end
+    if get(c, 17i) != 0i and width < 8i then
+      if width = 1i then
+        a_value(c, 10i, 0x0101010101010101)
+        a_op3(c, 0x9B007C00, 2i, 2i, 10i)
+      else
+        a_addshift(c, 2i, 2i, 2i, 32i)
+      end
+      wide_loop = fresh(c)
+      wide_done = fresh(c)
+      label_here(c, wide_loop)
+      a_cmpi(c, 9i, 8i)
+      a_condition(c, 3i, wide_done)
+      a_width(c, 2i, 8i, 8i, false)
+      a_addi(c, 8i, 8i, 8i)
+      a_subi(c, 9i, 9i, 8i)
+      a_branch(c, wide_loop, false)
+      label_here(c, wide_done)
+    end
+    loop = fresh(c)
+    done = fresh(c)
+    a_zero(c, 9i, done, false)
+    label_here(c, loop)
+    a_width(c, 2i, 8i, width, false)
+    a_addi(c, 8i, 8i, width)
+    a_subi(c, 9i, 9i, width)
+    a_zero(c, 9i, loop, true)
+    label_here(c, done)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "write_bytes" then
+    unscale(c, 2i, argument_type(e, 1i))
+    unscale(c, 4i, argument_type(e, 2i))
+    a_mov(c, 3i, 4i)
+    rtcall(c, "runtime.bounds")
+    a_mov(c, 2i, 4i)
+    a_mov(c, 1i, 0i)
+    a_value(c, 0i, 1i)
+    rtcall(c, "runtime.write")
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "address" then
+    if argument_type(e, 0i) = 4i then
+      rtcall(c, "runtime.validate")
+      a_mov(c, 0i, 8i)
+    end
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "pointer" or n = "address_int" then
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "offset" then
+    unscale(c, 2i, argument_type(e, 1i))
+    a_add(c, 0i, 0i, 2i)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "band" or n = "bor" or n = "bxor" then
+    op = 0x8A000000
+    if n = "bor" then
+      op = 0xAA000000
+    end
+    if n = "bxor" then
+      op = 0xCA000000
+    end
+    a_op3(c, op, 0i, 0i, 2i)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "bnot" then
+    a_value(c, 9i, -1i)
+    a_op3(c, 0xCA000000, 0i, 0i, 9i)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "shl" or n = "shr" or n = "sar" then
+    a_cmpi(c, 2i, 63i)
+    rtcond(c, 8i, "error.shift")
+    op = 0x9AC02000
+    if n = "shr" then
+      op = 0x9AC02400
+    end
+    if n = "sar" then
+      op = 0x9AC02800
+    end
+    a_op3(c, op, 0i, 0i, 2i)
+    finish_intrinsic(c, e)
+    return
+  end
+  if n = "assert" then
+    rtzero(c, 0i, "error.assert", false)
+    finish_intrinsic(c, e)
+    return
+  end
+  raw_access = starts(n, "peek") or starts(n, "poke")
+  read = starts(n, "load") or starts(n, "peek")
+  need(raw_access or starts(n, "load") or starts(n, "store"), "unimplemented compiler intrinsic")
+  width = 1i
+  if ends(n, "16") then
+    width = 2i
+  end
+  if ends(n, "32") then
+    width = 4i
+  end
+  if ends(n, "64") or ends(n, "num") or ends(n, "float") then
+    width = 8i
+  end
+  if not read and width < 8i then
+    reg = 4i
+    arg = 2i
+    if raw_access then
+      reg = 2i
+      arg = 1i
+    end
+    unscale(c, reg, argument_type(e, arg))
+    unsigned_width(c, reg, width)
+  end
+  if not raw_access then
+    unscale(c, 2i, argument_type(e, 1i))
+    a_value(c, 3i, width)
+    rtcall(c, "runtime.bounds")
+  end
+  if read then
+    a_width(c, 0i, 0i, width, true)
+    if width < 8i then
+      to_number(c, 0i)
+    end
+  else
+    reg = 4i
+    if raw_access then
+      reg = 2i
+    end
+    a_width(c, reg, 0i, width, false)
+  end
+  finish_intrinsic(c, e)
+end
+fn compare_condition(op: string, floating: bool): int
+  if op = "=" then
+    return 0i
+  end
+  if op = "!=" then
+    return 1i
+  end
+  if op = "<" then
+    if floating then
+      return 4i
+    end
+    return 11i
+  end
+  if op = "<=" then
+    if floating then
+      return 9i
+    end
+    return 13i
+  end
+  if op = ">" then
+    return 12i
+  end
+  return 10i
+end
+fn generate_expr(c: pointer, e: pointer): void
+  k = get(e, 0i)
+  t = get(e, 1i)
+  if k = 0i or k = 2i then
+    a_value(c, 0i, get(e, 3i))
+    a_value(c, 1i, 0i)
+    return
+  end
+  if k = 1i then
+    text = gets(e, 4i)
+    a_address(c, 0i, text_label(c, text))
+    a_value(c, 1i, int(len(text)))
+    return
+  end
+  if k = 7i then
+    a_address(c, 0i, get(getp(e, 12i), 12i))
+    a_value(c, 1i, 0i)
+    return
+  end
+  if k = 3i then
+    load_slot(c, get(e, 6i))
+    return
+  end
+  if k = 6i then
+    args = getp(e, 9i)
+    if args != nil() then
+      item = getp(args, 0i)
+      while item != nil() do
+        generate_expr(c, getp(item, 0i))
+        push_value(c)
+        item = getp(item, 1i)
+      end
+    end
+    f = getp(e, 12i)
+    if f != nil() then
+      a_addi(c, 8i, 31i, 0i)
+      a_branch(c, get(f, 9i), true)
+      a_stack(c, get(e, 10i) * 16i, false)
+    else
+      intrinsic(c, e)
+    end
+    return
+  end
+  op = gets(e, 4i)
+  if k = 4i then
+    generate_expr(c, getp(e, 7i))
+    if op = "-" then
+      if t = 7i then
+        a_value(c, 9i, 0x8000000000000000)
+        a_op3(c, 0xCA000000, 0i, 0i, 9i)
+      else
+        a_neg(c, 0i, 0i, true)
+        error = "error.overflow"
+        if t = 3i then
+          error = "error.int_overflow"
+        end
+        rtcond(c, 6i, error)
+      end
+    end
+    if op = "not" then
+      a_cmpi(c, 0i, 0i)
+      a_cset(c, 0i, 0i)
+    end
+    a_value(c, 1i, 0i)
+    return
+  end
+  need(k = 5i, "unknown AST expression")
+  if op = "and" or op = "or" then
+    done = fresh(c)
+    generate_expr(c, getp(e, 7i))
+    a_zero(c, 0i, done, op = "or")
+    generate_expr(c, getp(e, 8i))
+    label_here(c, done)
+    a_value(c, 1i, 0i)
+    return
+  end
+  right = getp(e, 8i)
+  rk = get(right, 0i)
+  scalar_type = get(getp(e, 7i), 1i)
+  if get(c, 17i) != 0i and (rk = 0i or rk = 2i) and scalar_type != 7i and scalar_type != 1i then
+    immediate = get(right, 3i)
+    if immediate >= 0i and immediate <= 4095i then
+      if op = "+" or op = "-" or op = "=" or op = "!=" or op = "<" or op = "<=" or op = ">" or op = ">=" then
+        generate_expr(c, getp(e, 7i))
+        if op = "+" or op = "-" then
+          instruction = 0xB1000000
+          if op = "-" then
+            instruction = 0xF1000000
+          end
+          emit(c, bor(instruction, shl(immediate, 10i)))
+          overflow = "error.overflow"
+          if scalar_type = 3i then
+            overflow = "error.int_overflow"
+          end
+          rtcond(c, 6i, overflow)
+        else
+          a_cmpi(c, 0i, immediate)
+          a_cset(c, 0i, compare_condition(op, false))
+        end
+        a_value(c, 1i, 0i)
+        return
+      end
+    end
+  end
+  generate_expr(c, getp(e, 7i))
+  if get(c, 17i) != 0i and (rk = 0i or rk = 2i or rk = 3i) then
+    a_mov(c, 2i, 0i)
+    a_mov(c, 3i, 1i)
+    generate_expr(c, right)
+  else
+    push_value(c)
+    generate_expr(c, right)
+    pop_left(c)
+  end
+  operand_type = get(getp(e, 7i), 1i)
+  if operand_type = 7i then
+    a_fmov(c, 0i, 0i, true)
+    a_fmov(c, 1i, 2i, true)
+    if op = "+" or op = "-" or op = "*" or op = "/" then
+      if op = "/" then
+        a_fconstant(c, 2i, 0i)
+        a_fcmp(c, 0i, 2i)
+        rtcond(c, 0i, "error.zero")
+      end
+      a_fbinary(c, 0i, 1i, 0i, op)
+      a_fmov(c, 0i, 0i, false)
+      finite_value(c)
+    else
+      a_fcmp(c, 1i, 0i)
+      a_cset(c, 0i, compare_condition(op, true))
+    end
+    a_value(c, 1i, 0i)
+    return
+  end
+  error = "error.overflow"
+  if t = 3i then
+    error = "error.int_overflow"
+  end
+  if op = "+" or op = "-" then
+    opcode = 0xAB000000
+    if op = "-" then
+      opcode = 0xEB000000
+    end
+    a_op3(c, opcode, 0i, 2i, 0i)
+    rtcond(c, 6i, error)
+  else
+    if op = "%" then
+      rtzero(c, 0i, "error.zero", false)
+      a_op3(c, 0x9AC00C00, 9i, 2i, 0i)
+      a_msub(c, 0i, 9i, 0i, 2i)
+    else
+      if op = "*" then
+        if t = 3i then
+          a_op3(c, 0x9B407C00, 9i, 2i, 0i)
+          a_op3(c, 0x9B007C00, 0i, 2i, 0i)
+          a_right(c, 10i, 0i, 63i, true)
+          a_cmp(c, 9i, 10i)
+          rtcond(c, 1i, error)
+        else
+          rtcall(c, "runtime.multiply")
+        end
+      else
+        if op = "/" then
+          if t = 3i then
+            rtzero(c, 0i, "error.zero", false)
+            ok = fresh(c)
+            a_value(c, 9i, 0x8000000000000000)
+            a_cmp(c, 2i, 9i)
+            a_condition(c, 1i, ok)
+            a_value(c, 9i, -1i)
+            a_cmp(c, 0i, 9i)
+            rtcond(c, 0i, error)
+            label_here(c, ok)
+            a_op3(c, 0x9AC00C00, 0i, 2i, 0i)
+          else
+            rtcall(c, "runtime.divide")
+          end
+        else
+          if operand_type = 1i then
+            rtcall(c, "runtime.string_equal")
+            if op = "!=" then
+              a_cmpi(c, 0i, 0i)
+              a_cset(c, 0i, 0i)
+            end
+          else
+            a_cmp(c, 2i, 0i)
+            a_cset(c, 0i, compare_condition(op, false))
+          end
+        end
+      end
+    end
+  end
+  a_value(c, 1i, 0i)
+end
+fn exit_code(c: pointer, code: int): void
+  a_value(c, 0i, code)
+  a_value(c, 16i, 1i)
+  emit(c, 0xD4001001)
+  emit(c, 0xD4200000)
+end
+fn generate_print(c: pointer, e: pointer): void
+  generate_expr(c, e)
+  t = get(e, 1i)
+  if t = 0i then
+    rtcall(c, "runtime.number")
+  end
+  if t = 3i then
+    rtcall(c, "runtime.integer_print")
+  end
+  if t = 5i then
+    rtcall(c, "runtime.pointer_print")
+  end
+  if t = 7i then
+    rtcall(c, "runtime.float_print")
+  end
+  if t = 1i then
+    write_value(c)
+  end
+  if t = 2i then
+    no = fresh(c)
+    done = fresh(c)
+    a_zero(c, 0i, no, false)
+    a_address(c, 0i, text_label(c, "true"))
+    a_value(c, 1i, 4i)
+    a_branch(c, done, false)
+    label_here(c, no)
+    a_address(c, 0i, text_label(c, "false"))
+    a_value(c, 1i, 5i)
+    label_here(c, done)
+    write_value(c)
+  end
+end
+fn loop_push(c: pointer, next: int, done: int): void
+  loop = arena(c, 32i)
+  put(loop, 0i, next)
+  put(loop, 1i, done)
+  putp(loop, 2i, getp(c, 15i))
+  putp(c, 15i, loop)
+end
+fn loop_pop(c: pointer): void
+  putp(c, 15i, getp(getp(c, 15i), 2i))
+end
+fn generate_block(c: pointer, body: pointer): void
+  s = body
+  while s != nil() do
+    k = get(s, 0i)
+    if k = 0i then
+      generate_expr(c, getp(s, 4i))
+      store_slot(c, get(s, 2i))
+    end
+    if k = 1i then
+      it = getp(getp(s, 5i), 0i)
+      while it != nil() do
+        generate_print(c, getp(it, 0i))
+        it = getp(it, 1i)
+      end
+    end
+    if k = 2i then
+      no = fresh(c)
+      done = fresh(c)
+      generate_expr(c, getp(s, 4i))
+      a_zero(c, 0i, no, false)
+      generate_block(c, getp(s, 7i))
+      a_branch(c, done, false)
+      label_here(c, no)
+      generate_block(c, getp(s, 8i))
+      label_here(c, done)
+    end
+    if k = 4i then
+      head = fresh(c)
+      done = fresh(c)
+      label_here(c, head)
+      generate_expr(c, getp(s, 4i))
+      a_zero(c, 0i, done, false)
+      loop_push(c, head, done)
+      generate_block(c, getp(s, 7i))
+      loop_pop(c)
+      a_branch(c, head, false)
+      label_here(c, done)
+    end
+    if k = 3i then
+      it = getp(getp(s, 5i), 0i)
+      i = 0i
+      while it != nil() do
+        generate_expr(c, getp(it, 0i))
+        store_slot(c, get(s, 10i) + i)
+        it = getp(it, 1i)
+        i = i + 1i
+      end
+      a_value(c, 0i, 0i)
+      a_value(c, 1i, 0i)
+      store_slot(c, get(s, 9i))
+      head = fresh(c)
+      done = fresh(c)
+      next = fresh(c)
+      label_here(c, head)
+      a_load(c, 9i, 28i, get(s, 9i) * 16i)
+      a_value(c, 10i, get(s, 6i))
+      a_cmp(c, 9i, 10i)
+      a_condition(c, 2i, done)
+      a_value(c, 10i, get(s, 10i) * 16i)
+      a_add(c, 10i, 28i, 10i)
+      a_addshift(c, 10i, 10i, 9i, 4i)
+      a_load(c, 0i, 10i, 0i)
+      a_load(c, 1i, 10i, 8i)
+      store_slot(c, get(s, 2i))
+      loop_push(c, next, done)
+      generate_block(c, getp(s, 7i))
+      loop_pop(c)
+      label_here(c, next)
+      a_load(c, 0i, 28i, get(s, 9i) * 16i)
+      a_addi(c, 0i, 0i, 1i)
+      a_store(c, 0i, 28i, get(s, 9i) * 16i)
+      a_branch(c, head, false)
+      label_here(c, done)
+    end
+    if k = 5i then
+      e = getp(s, 4i)
+      generate_expr(c, e)
+      a_cmpi(c, 0i, 0i)
+      rtcond(c, 11i, "error.exit")
+      scale = 1000000i
+      if get(e, 1i) = 3i then
+        scale = 1i
+      end
+      a_value(c, 9i, 255i * scale)
+      a_cmp(c, 0i, 9i)
+      rtcond(c, 8i, "error.exit")
+      a_value(c, 9i, scale)
+      a_op3(c, 0x9AC00800, 10i, 0i, 9i)
+      a_msub(c, 11i, 10i, 9i, 0i)
+      rtzero(c, 11i, "error.exit", true)
+      a_mov(c, 0i, 10i)
+      a_value(c, 16i, 1i)
+      emit(c, 0xD4001001)
+      emit(c, 0xD4200000)
+    end
+    if k = 6i then
+      generate_expr(c, getp(s, 4i))
+    end
+    if k = 7i then
+      generate_block(c, getp(s, 7i))
+    end
+    if k = 8i then
+      if getp(s, 4i) != nil() then
+        generate_expr(c, getp(s, 4i))
+      else
+        a_value(c, 0i, 0i)
+        a_value(c, 1i, 0i)
+      end
+      a_branch(c, get(c, 14i), false)
+    end
+    if k = 9i then
+      a_branch(c, get(getp(c, 15i), 1i), false)
+    end
+    if k = 10i then
+      a_branch(c, get(getp(c, 15i), 0i), false)
+    end
+    s = getp(s, 11i)
+  end
+end
+fn generate_function(c: pointer, f: pointer): void
+  label_here(c, get(f, 9i))
+  a_stack(c, 32i, true)
+  a_store(c, 29i, 31i, 0i)
+  a_store(c, 30i, 31i, 8i)
+  a_store(c, 28i, 31i, 16i)
+  a_addi(c, 29i, 31i, 0i)
+  a_stack(c, get(f, 7i) * 16i, true)
+  a_addi(c, 28i, 31i, 0i)
+  a_cmp(c, 28i, 22i)
+  rtcond(c, 3i, "error.stack")
+  count = get(f, 5i)
+  i = 0i
+  while i < count do
+    a_load(c, 0i, 8i, (count - i - 1i) * 16i)
+    a_load(c, 1i, 8i, (count - i - 1i) * 16i + 8i)
+    store_slot(c, get(list_get(getp(f, 4i), i), 3i))
+    i = i + 1i
+  end
+  endlabel = fresh(c)
+  put(c, 14i, endlabel)
+  generate_block(c, getp(f, 6i))
+  a_value(c, 0i, 0i)
+  a_value(c, 1i, 0i)
+  label_here(c, endlabel)
+  a_addi(c, 31i, 29i, 0i)
+  a_load(c, 28i, 31i, 16i)
+  a_load(c, 30i, 31i, 8i)
+  a_load(c, 29i, 31i, 0i)
+  a_stack(c, 32i, false)
+  emit(c, 0xD65F03C0)
+end
+fn emit_time_init(c: pointer): void
+  a_stack(c, 16i, true)
+  a_addi(c, 0i, 31i, 0i)
+  a_value(c, 16i, -89i)
+  emit(c, 0xD4001001)
+  rtzero(c, 0i, "error.time", true)
+  a_width(c, 25i, 31i, 4i, true)
+  a_addi(c, 9i, 31i, 4i)
+  a_width(c, 24i, 9i, 4i, true)
+  a_stack(c, 16i, false)
+  rtzero(c, 25i, "error.time", false)
+  rtzero(c, 24i, "error.time", false)
+  a_value(c, 9i, 1000i)
+  a_op3(c, 0x9B007C00, 24i, 24i, 9i)
+  rtcall(c, "runtime.rawclock")
+  a_mov(c, 23i, 0i)
+end
+fn generate_task_adapter(c: pointer, f: pointer): void
+  label_here(c, get(f, 12i))
+  # Native ABI entry: X0 envelope, X1 lane. Preserve all required callee-saved state.
+  a_stack(c, 208i, true)
+  reg = 19i
+  while reg <= 30i do
+    a_store(c, reg, 31i, 48i + (reg - 19i) * 8i)
+    reg = reg + 1i
+  end
+  reg = 8i
+  while reg <= 15i do
+    emit(c, 0xFD000000 + ((144i + (reg - 8i) * 8i) / 8i) * 1024i + 31i * 32i + reg)
+    reg = reg + 1i
+  end
+  a_mov(c, 19i, 0i)
+  a_mov(c, 20i, 1i)
+  a_load(c, 27i, 19i, 16i)
+  a_load(c, 10i, 19i, 24i)
+  a_load(c, 11i, 19i, 32i)
+  a_op3(c, 0x9AC00800, 12i, 10i, 11i) # quotient
+  a_msub(c, 13i, 12i, 11i, 10i) # remainder
+  a_op3(c, 0x9B007C00, 14i, 20i, 12i)
+  full = fresh(c)
+  ready = fresh(c)
+  a_cmp(c, 20i, 13i)
+  a_condition(c, 2i, full)
+  a_add(c, 14i, 14i, 20i)
+  a_add(c, 15i, 14i, 12i)
+  a_addi(c, 15i, 15i, 1i)
+  a_branch(c, ready, false)
+  label_here(c, full)
+  a_add(c, 14i, 14i, 13i)
+  a_add(c, 15i, 14i, 12i)
+  label_here(c, ready)
+  a_store(c, 15i, 31i, 0i)
+  a_store(c, 31i, 31i, 8i)
+  a_store(c, 14i, 31i, 16i)
+  a_store(c, 31i, 31i, 24i)
+  a_load(c, 9i, 19i, 0i)
+  a_store(c, 9i, 31i, 32i)
+  a_load(c, 9i, 19i, 8i)
+  a_store(c, 9i, 31i, 40i)
+  a_addi(c, 22i, 31i, 0i)
+  a_value(c, 9i, 131072i)
+  a_sub(c, 22i, 22i, 9i)
+  a_addi(c, 8i, 31i, 0i)
+  a_branch(c, get(f, 9i), true)
+  reg = 8i
+  while reg <= 15i do
+    emit(c, 0xFD400000 + ((144i + (reg - 8i) * 8i) / 8i) * 1024i + 31i * 32i + reg)
+    reg = reg + 1i
+  end
+  reg = 19i
+  while reg <= 30i do
+    a_load(c, reg, 31i, 48i + (reg - 19i) * 8i)
+    reg = reg + 1i
+  end
+  a_stack(c, 208i, false)
+  emit(c, 0xD65F03C0)
+end
+
+fn generate(p: pointer): pointer
+  c = new_arena(33554432i, 256i)
+  put(c, 17i, 1i - get(p, 24i))
+  putp(c, 18i, raw(8192i))
+  putp(c, 3i, raw(33554432i))
+  putp(c, 6i, raw(2097152i))
+  emit_runtime(c)
+  f = getp(p, 8i)
+  while f != nil() do
+    put(f, 9i, fresh(c))
+    if get(f, 11i) = 1i then
+      put(f, 12i, fresh(c))
+    end
+    f = getp(f, 8i)
+  end
+  label_here(c, runtime_id("program.entry"))
+  emit(c, 0x2A0003F3) # argc: clear upper 32 bits as required for a C int argument.
+  a_mov(c, 20i, 1i)
+  a_mov(c, 21i, 2i)
+  a_stack(c, 32i, true)
+  a_store(c, 29i, 31i, 0i)
+  a_store(c, 30i, 31i, 8i)
+  a_store(c, 28i, 31i, 16i)
+  a_addi(c, 29i, 31i, 0i)
+  a_value(c, 27i, 0i)
+  a_addi(c, 22i, 31i, 0i)
+  a_value(c, 17i, 1048576i)
+  a_sub(c, 22i, 22i, 17i)
+  if get(p, 12i) != 0i then
+    emit_time_init(c)
+  end
+  a_stack(c, get(p, 11i) * 16i, true)
+  a_addi(c, 28i, 31i, 0i)
+  generate_block(c, getp(p, 10i))
+  exit_code(c, 0i)
+  f = getp(p, 8i)
+  while f != nil() do
+    generate_function(c, f)
+    if get(f, 11i) = 1i then
+      generate_task_adapter(c, f)
+    end
+    f = getp(f, 8i)
+  end
+  finish_code(c)
+  return c
+end
+# SHA-256: explicit 32-bit masking on APO's checked 64-bit integers.
+# One reusable workspace avoids one-allocation-per-hashed-page leaks.
+fn ror32(x: int, n: int): int
+  return band(bor(shr(x, n), shl(x, 32i - n)), 0xffffffff)
+end
+fn read_be32(p: pointer, pos: int): int
+  return shl(getb(p, pos), 24i) + shl(getb(p, pos + 1i), 16i) + shl(getb(p, pos + 2i), 8i) + getb(p, pos + 3i)
+end
+fn write_be32(p: pointer, pos: int, value: int): void
+  setb(p, pos, band(shr(value, 24i), 255i))
+  setb(p, pos + 1i, band(shr(value, 16i), 255i))
+  setb(p, pos + 2i, band(shr(value, 8i), 255i))
+  setb(p, pos + 3i, band(value, 255i))
+end
+fn sha_workspace(): pointer
+  p = raw(1216i)
+  i = 0i
+  for value in 0x428a2f98 0x71374491 0xb5c0fbcf 0xe9b5dba5 0x3956c25b 0x59f111f1 0x923f82a4 0xab1c5ed5 0xd807aa98 0x12835b01 0x243185be 0x550c7dc3 0x72be5d74 0x80deb1fe 0x9bdc06a7 0xc19bf174 0xe49b69c1 0xefbe4786 0x0fc19dc6 0x240ca1cc 0x2de92c6f 0x4a7484aa 0x5cb0a9dc 0x76f988da 0x983e5152 0xa831c66d 0xb00327c8 0xbf597fc7 0xc6e00bf3 0xd5a79147 0x06ca6351 0x14292967 0x27b70a85 0x2e1b2138 0x4d2c6dfc 0x53380d13 0x650a7354 0x766a0abb 0x81c2c92e 0x92722c85 0xa2bfe8a1 0xa81a664b 0xc24b8b70 0xc76c51a3 0xd192e819 0xd6990624 0xf40e3585 0x106aa070 0x19a4c116 0x1e376c08 0x2748774c 0x34b0bcb5 0x391c0cb3 0x4ed8aa4a 0x5b9cca4f 0x682e6ff3 0x748f82ee 0x78a5636f 0x84c87814 0x8cc70208 0x90befffa 0xa4506ceb 0xbef9a3f7 0xc67178f2
+    put(at(p, 576i), i, value)
+    i = i + 1i
+  end
+  return p
+end
+fn sha_block(state: pointer, block: pointer): void
+  w = at(state, 64i)
+  k = at(state, 576i)
+  i = 0i
+  while i < 16i do
+    put(w, i, read_be32(block, i * 4i))
+    i = i + 1i
+  end
+  while i < 64i do
+    u = get(w, i - 15i)
+    v = get(w, i - 2i)
+    s0 = bxor(bxor(ror32(u, 7i), ror32(u, 18i)), shr(u, 3i))
+    s1 = bxor(bxor(ror32(v, 17i), ror32(v, 19i)), shr(v, 10i))
+    put(w, i, band(get(w, i - 16i) + s0 + get(w, i - 7i) + s1, 0xffffffff))
+    i = i + 1i
+  end
+  a = get(state, 0i)
+  b = get(state, 1i)
+  c = get(state, 2i)
+  d = get(state, 3i)
+  e = get(state, 4i)
+  f = get(state, 5i)
+  g = get(state, 6i)
+  h = get(state, 7i)
+  i = 0i
+  while i < 64i do
+    s1 = bxor(bxor(ror32(e, 6i), ror32(e, 11i)), ror32(e, 25i))
+    choose = bxor(band(e, f), band(bnot(e), g))
+    t1 = h + s1 + choose + get(k, i) + get(w, i)
+    s0 = bxor(bxor(ror32(a, 2i), ror32(a, 13i)), ror32(a, 22i))
+    majority = bxor(bxor(band(a, b), band(a, c)), band(b, c))
+    t2 = s0 + majority
+    h = g
+    g = f
+    f = e
+    e = band(d + t1, 0xffffffff)
+    d = c
+    c = b
+    b = a
+    a = band(t1 + t2, 0xffffffff)
+    i = i + 1i
+  end
+  put(state, 0i, band(get(state, 0i) + a, 0xffffffff))
+  put(state, 1i, band(get(state, 1i) + b, 0xffffffff))
+  put(state, 2i, band(get(state, 2i) + c, 0xffffffff))
+  put(state, 3i, band(get(state, 3i) + d, 0xffffffff))
+  put(state, 4i, band(get(state, 4i) + e, 0xffffffff))
+  put(state, 5i, band(get(state, 5i) + f, 0xffffffff))
+  put(state, 6i, band(get(state, 6i) + g, 0xffffffff))
+  put(state, 7i, band(get(state, 7i) + h, 0xffffffff))
+end
+fn sha256(state: pointer, data: pointer, size: int, result: pointer): void
+  need(size >= 0i and size <= 33554432i, "SHA-256 input limit")
+  i = 0i
+  for value in 0x6a09e667 0xbb67ae85 0x3c6ef372 0xa54ff53a 0x510e527f 0x9b05688c 0x1f83d9ab 0x5be0cd19
+    put(state, i, value)
+    i = i + 1i
+  end
+  pos = 0i
+  while size - pos >= 64i do
+    sha_block(state, at(data, pos))
+    pos = pos + 64i
+  end
+  tail = at(state, 1088i)
+  i = 0i
+  while i < 16i do
+    put(tail, i, 0i)
+    i = i + 1i
+  end
+  rest = size - pos
+  raw_copy(tail, at(data, pos), rest)
+  setb(tail, rest, 128i)
+  tail_size = 64i
+  if rest >= 56i then
+    tail_size = 128i
+  end
+  write_be32(tail, tail_size - 8i, shr(size * 8i, 32i))
+  write_be32(tail, tail_size - 4i, band(size * 8i, 0xffffffff))
+  sha_block(state, tail)
+  if tail_size = 128i then
+    sha_block(state, at(tail, 64i))
+  end
+  i = 0i
+  while i < 8i do
+    write_be32(result, i * 4i, get(state, i))
+    i = i + 1i
+  end
+end
+# Mach-O writer. These are file bytes, not a call to a system linker or signer.
+fn aligned(n: int, alignment: int): int
+  return band(n + alignment - 1i, bnot(alignment - 1i))
+end
+fn writer(data: pointer, limit: int, pos: int): pointer
+  w = raw(32i)
+  putp(w, 0i, data)
+  put(w, 1i, limit)
+  put(w, 2i, pos)
+  return w
+end
+fn wreserve(w: pointer, count: int): pointer
+  pos = get(w, 2i)
+  need(pos >= 0i and count >= 0i and pos <= get(w, 1i) - count, "binary writer overflow")
+  put(w, 2i, pos + count)
+  return at(getp(w, 0i), pos)
+end
+fn w32(w: pointer, value: int): void
+  unsafe
+    poke32(wreserve(w, 4i), value)
+  end
+end
+fn w64(w: pointer, value: int): void
+  unsafe
+    poke64(wreserve(w, 8i), value)
+  end
+end
+fn wb32(w: pointer, value: int): void
+  write_be32(wreserve(w, 4i), 0i, value)
+end
+fn wb64(w: pointer, value: int): void
+  wb32(w, shr(value, 32i))
+  wb32(w, band(value, 0xffffffff))
+end
+fn wtext(w: pointer, text: string): void
+  unsafe
+    raw_copy(wreserve(w, int(len(text))), address(text), int(len(text)))
+  end
+end
+fn wname(w: pointer, text: string): void
+  need(int(len(text)) <= 16i, "Mach-O name too long")
+  p = wreserve(w, 16i)
+  unsafe
+    raw_copy(p, address(text), int(len(text)))
+  end
+end
+fn segment(w: pointer, name: string, address_value: int, memory_size: int, file_offset: int, file_size: int, protection: int, sections: int): void
+  w32(w, 0x19)
+  w32(w, 72i + sections * 80i)
+  wname(w, name)
+  w64(w, address_value)
+  w64(w, memory_size)
+  w64(w, file_offset)
+  w64(w, file_size)
+  w32(w, protection)
+  w32(w, protection)
+  w32(w, sections)
+  w32(w, 0i)
+end
+fn section(w: pointer, name: string, pos: int, size: int, alignment: int, flags: int): void
+  wname(w, name)
+  wname(w, "__TEXT")
+  w64(w, 0x100000000 + pos)
+  w64(w, size)
+  w32(w, pos)
+  w32(w, alignment)
+  w32(w, 0i)
+  w32(w, 0i)
+  w32(w, flags)
+  w32(w, 0i)
+  w32(w, 0i)
+  w32(w, 0i)
+end
+fn path_command(w: pointer, command: int, path: string, library: bool): void
+  name_offset = 12i
+  if library then
+    name_offset = 24i
+  end
+  size = aligned(name_offset + int(len(path)) + 1i, 8i)
+  start = get(w, 2i)
+  w32(w, command)
+  w32(w, size)
+  w32(w, name_offset)
+  if library then
+    w32(w, 0i)
+    w32(w, 0x10000)
+    w32(w, 0x10000)
+  end
+  wtext(w, path)
+  wreserve(w, start + size - get(w, 2i))
+end
+fn macho(c: pointer): pointer
+  payload_size = get(c, 13i)
+  code_size = get(c, 11i)
+  string_pos = get(c, 12i)
+  need(code_size > 0i and code_size % 4i = 0i and string_pos = aligned(code_size, 16i) and payload_size >= string_pos, "invalid native payload")
+  text_size = aligned(4096i + payload_size, 16384i)
+  linked = get(c, 25i) != 0i or get(c, 26i) != 0i
+  link_start = text_size
+  if linked then
+    link_start = link_start + 16384i
+  end
+  # Eager dyld binding into a dedicated writable non-executable __DATA page.
+  bind_info = raw(32i)
+  if linked then
+    # SET_DYLIB_ORDINAL_IMM(1), SET_TYPE_IMM(pointer), SET_SYMBOL, SEGMENT(2).
+    setb(bind_info, 0i, 17i)
+    setb(bind_info, 1i, 81i)
+    setb(bind_info, 2i, 64i)
+    unsafe
+      raw_copy(at(bind_info, 3i), address("_dlopen\0"), 8i)
+    end
+    setb(bind_info, 11i, 114i)
+    setb(bind_info, 12i, 0i)
+    setb(bind_info, 13i, 144i)
+    setb(bind_info, 14i, 64i)
+    unsafe
+      raw_copy(at(bind_info, 15i), address("_dlsym\0"), 7i)
+    end
+    setb(bind_info, 22i, 144i)
+    setb(bind_info, 23i, 0i)
+  end
+  sig_pos = link_start + 16i
+  if linked then
+    sig_pos = link_start + 128i
+  end
+  slots = (sig_pos + 4095i) / 4096i
+  identifier = "apo.executable\0"
+  hash_offset = 88i + int(len(identifier))
+  directory_size = hash_offset + slots * 32i
+  sig_size = aligned(20i + directory_size, 16i)
+  file_size = sig_pos + sig_size
+  need(file_size < 67108864i, "executable limit exceeded")
+  image = raw(file_size)
+  w = writer(image, 4096i, 32i)
+  segment(w, "__PAGEZERO", 0i, 0x100000000, 0i, 0i, 0i, 0i)
+  segment(w, "__TEXT", 0x100000000, text_size, 0i, text_size, 5i, 2i)
+  section(w, "__text", 4096i, code_size, 2i, 0x80000400)
+  section(w, "__cstring", 4096i + string_pos, payload_size - string_pos, 4i, 2i)
+  if linked then
+    segment(w, "__DATA", 0x100000000 + text_size, 16384i, text_size, 16384i, 3i, 1i)
+    wname(w, "__got")
+    wname(w, "__DATA")
+    w64(w, 0x100000000 + text_size)
+    w64(w, 16i)
+    w32(w, text_size)
+    w32(w, 3i)
+    w32(w, 0i)
+    w32(w, 0i)
+    w32(w, 6i) # S_NON_LAZY_SYMBOL_POINTERS
+    w32(w, 0i)
+    w32(w, 0i)
+    w32(w, 0i)
+  end
+  segment(w, "__LINKEDIT", 0x100000000 + link_start, aligned(file_size - link_start, 16384i), link_start, file_size - link_start, 1i, 0i)
+  w32(w, 0x80000022)
+  w32(w, 48i)
+  i = 0i
+  while i < 10i do
+    value = 0i
+    if linked and i = 2i then
+      value = link_start
+    end
+    if linked and i = 3i then
+      value = 24i
+    end
+    w32(w, value)
+    i = i + 1i
+  end
+  w32(w, 2i)
+  w32(w, 24i)
+  if linked then
+    w32(w, link_start + 32i) # nlist_64 table
+    w32(w, 2i)
+    w32(w, link_start + 80i) # string table
+    w32(w, 16i)
+  else
+    w32(w, link_start)
+    w32(w, 0i)
+    w32(w, link_start)
+    w32(w, 1i)
+  end
+  w32(w, 11i)
+  w32(w, 80i)
+  i = 0i
+  while i < 18i do
+    value = 0i
+    if linked and i = 5i then
+      value = 2i # nundefsym
+    end
+    if linked and i = 12i then
+      value = link_start + 64i # indirectsymoff
+    end
+    if linked and i = 13i then
+      value = 2i # nindirectsyms
+    end
+    w32(w, value)
+    i = i + 1i
+  end
+  path_command(w, 14i, "/usr/lib/dyld", false)
+  sha = sha_workspace()
+  digest = raw(32i)
+  sha256(sha, getp(c, 3i), payload_size, digest)
+  w32(w, 27i)
+  w32(w, 24i)
+  raw_copy(wreserve(w, 16i), digest, 16i)
+  w32(w, 50i)
+  w32(w, 24i)
+  w32(w, 1i)
+  w32(w, 0x000b0000)
+  w32(w, 0x000b0000)
+  w32(w, 0i)
+  w32(w, 0x80000028)
+  w32(w, 24i)
+  w64(w, 4096i)
+  w64(w, 8388608i)
+  path_command(w, 12i, "/usr/lib/libSystem.B.dylib", true)
+  w32(w, 29i)
+  w32(w, 16i)
+  w32(w, sig_pos)
+  w32(w, sig_size)
+  command_size = get(w, 2i) - 32i
+  put(w, 2i, 0i)
+  w32(w, 0xfeedfacf)
+  w32(w, 0x0100000c)
+  w32(w, 0i)
+  w32(w, 2i)
+  if linked then
+    w32(w, 13i)
+  else
+    w32(w, 12i)
+  end
+  w32(w, command_size)
+  w32(w, 0x00200085)
+  w32(w, 0i)
+  raw_copy(at(image, 4096i), getp(c, 3i), payload_size)
+  if linked then
+    raw_copy(at(image, link_start), bind_info, 24i)
+    # nlist entries: N_UNDF|N_EXT, library ordinal 1, no preferred address.
+    unsafe
+      poke32(at(image, link_start + 32i), 1i)
+      poke32(at(image, link_start + 36i), 0x01000001)
+      poke32(at(image, link_start + 48i), 9i)
+      poke32(at(image, link_start + 52i), 0x01000001)
+      poke32(at(image, link_start + 64i), 0i)
+      poke32(at(image, link_start + 68i), 1i)
+      raw_copy(at(image, link_start + 80i), address("\0_dlopen\0_dlsym\0"), 16i)
+    end
+  end
+  put(w, 1i, file_size)
+  put(w, 2i, sig_pos)
+  wb32(w, 0xfade0cc0)
+  wb32(w, 20i + directory_size)
+  wb32(w, 1i)
+  wb32(w, 0i)
+  wb32(w, 20i)
+  wb32(w, 0xfade0c02)
+  wb32(w, directory_size)
+  wb32(w, 0x20400)
+  wb32(w, 0x20002)
+  wb32(w, hash_offset)
+  wb32(w, 88i)
+  wb32(w, 0i)
+  wb32(w, slots)
+  wb32(w, sig_pos)
+  wb32(w, 0x2002000c)
+  wb32(w, 0i)
+  wb32(w, 0i)
+  wb32(w, 0i)
+  wb32(w, 0i)
+  wb64(w, 0i)
+  wb64(w, 0i)
+  wb64(w, text_size)
+  wb64(w, 1i)
+  wtext(w, identifier)
+  pos = 0i
+  while pos < sig_pos do
+    sha256(sha, at(image, pos), minint(4096i, sig_pos - pos), wreserve(w, 32i))
+    pos = pos + 4096i
+  end
+  put(c, 16i, file_size)
+  return image
+end
+# Command-line interface, filesystem I/O, launching: all compiled APO.
+fn usage(): void
+  print: "APO 2.1.5 - self-hosted native macOS ARM64 compiler\n"
+  print: "  apo build source.apo [-o executable] [--dump] [--no-opt]\n"
+  print: "  apo check source.apo\n"
+  print: "  apo run source.apo [-- program arguments...]\n"
+  print: "  apo --version\n"
+  print: "Named imports: use window. Override library root with --lib-dir or APO_LIB.\n"
+  print: "Default output: out/<source basename>. No external compiler is invoked.\n"
+end
+fn default_output(source: string): string
+  pos = 0i
+  base = 0i
+  while pos < int(len(source)) do
+    if byte_at(source, pos) = 47i then
+      base = pos + 1i
+    end
+    pos = pos + 1i
+  end
+  stem = slice(source, base, int(len(source)) - base - 4i)
+  if int(len(stem)) = 0i then
+    die("source must have a basename before .apo", 64i)
+  end
+  return concat("out/", stem)
+end
+fn dump_code(c: pointer): void
+  pos = 0i
+  while pos < get(c, 11i) do
+    unsafe
+      print: pointer(pos), "  ", pointer(int(peek32(at(getp(c, 3i), pos)))), \nl
+    end
+    pos = pos + 4i
+  end
+end
+fn launch(path: string, first_arg: int): void
+  count = argc() - first_arg
+  need(count >= 0i and count <= 512i, "too many program arguments")
+  argv = raw((count + 2i) * 8i)
+  pathbuf = cstring(path)
+  unsafe
+    putp(argv, 0i, address(pathbuf))
+    i = 0i
+    while i < count do
+      # argv strings remain allocated until exec replaces this process.
+      text = cstring(arg(first_arg + i))
+      putp(argv, i + 1i, address(text))
+      i = i + 1i
+    end
+    result = syscall(59i, address(pathbuf), argv, envp(), 0i, 0i, 0i)
+    write_fd(2i, concat("execve failed, errno ", strint(-result)))
+    die("cannot launch executable", 74i)
+  end
+end
+fn driver(): void
+  if argc() < 2i then
+    usage()
+    return
+  end
+  mode = arg(1i)
+  if mode = "--version" then
+    print: "APO 2.1.5 (self-hosted, macOS arm64)", \nl
+    return
+  end
+  if mode = "--help" or mode = "help" then
+    usage()
+    return
+  end
+  if mode != "build" and mode != "check" and mode != "run" then
+    die("expected build, check, run, or --help", 64i)
+  end
+  if argc() < 3i then
+    die("missing .apo source path", 64i)
+  end
+  source = arg(2i)
+  if not apo_suffix(source) then
+    die("source filename must end in .apo", 64i)
+  end
+  output = default_output(source)
+  dump = false
+  no_opt = false
+  libraries = library_root()
+  first_arg = argc()
+  i = 3i
+  while i < argc() do
+    option = arg(i)
+    if option = "--" and mode = "run" then
+      first_arg = i + 1i
+      break
+    end
+    if option = "--lib-dir" then
+      i = i + 1i
+      if i >= argc() or arg(i) = "" then
+        die("--lib-dir requires a directory", 64i)
+      end
+      libraries = path_normal(arg(i))
+      i = i + 1i
+      continue
+    end
+    if option = "--no-opt" then
+      no_opt = true
+      i = i + 1i
+      continue
+    end
+    if option = "-o" and mode = "build" then
+      i = i + 1i
+      if i >= argc() then
+        die("missing output path after -o", 64i)
+      end
+      output = arg(i)
+    else
+      if option = "--dump" and mode = "build" then
+        dump = true
+      else
+        die(concat("unexpected option: ", option), 64i)
+      end
+    end
+    i = i + 1i
+  end
+  # Validate before path normalization; an empty -o is a usage error.
+  if int(len(output)) = 0i or int(len(output)) >= 4096i then
+    die("output path must contain 1..4095 bytes", 64i)
+  end
+  normalized_output = path_normal(output)
+  if normalized_output = "." or normalized_output = ".." or normalized_output = "/" then
+    die("output must name a file, not a directory", 64i)
+  end
+  # Do not let an innocent typo replace a source file with machine code.
+  if apo_suffix(output) or normalized_output = path_normal(source) or normalized_output = path_normal(arg(0i)) then
+    die("refusing to overwrite a source file or the running compiler", 64i)
+  end
+  p = parse(load_program(source, libraries), source)
+  if no_opt then
+    put(p, 24i, 1i)
+  end
+  if mode = "check" then
+    print: "Checked ", source, \nl
+    return
+  end
+  c = generate(p)
+  image = macho(c)
+  save_file(output, image, get(c, 16i), true)
+  if dump then
+    dump_code(c)
+  end
+  if mode = "build" then
+    print: "Built ", output, " (macOS ARM64, ", get(c, 16i), " bytes)", \nl
+  else
+    launch(output, first_arg)
+  end
+end
+
+driver()

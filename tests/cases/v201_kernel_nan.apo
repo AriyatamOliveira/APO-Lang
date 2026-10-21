@@ -1,0 +1,6 @@
+use "../../lib/render3d.apo"
+b = r3_canvas(32i, 32i)
+unsafe
+  bad = float_from_bits(0x7ff8000000000000)
+  _raster_line(b, bad, 0.0f, 31.0f, 31.0f, 1.0f, 1.0f, 31i, 0xffffffff)
+end

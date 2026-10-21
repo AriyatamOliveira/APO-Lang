@@ -1,0 +1,3 @@
+unsafe
+print asm32(0x100000000)
+end

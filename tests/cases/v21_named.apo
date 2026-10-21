@@ -1,0 +1,6 @@
+use memory
+let b=ints(3i)
+int_set(b,2i,77i)
+assert(int_get(b,2i)==77i)
+free(b)
+println "Named imports passed"

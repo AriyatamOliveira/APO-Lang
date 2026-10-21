@@ -1,0 +1,6 @@
+start = clock()
+sleep(0.01)
+assert(clock() - start >= 0.01)
+sleep_until(start + 0.02)
+assert(clock() - start >= 0.02)
+print: "timed"

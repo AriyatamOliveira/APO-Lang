@@ -1,0 +1,10 @@
+b=alloc(32)
+storefloat(b,3,float(0.125))
+assert(loadfloat(b,3)=float(0.125))
+unsafe
+ p=offset(address(b),11)
+ pokefloat(p,float(-1.25))
+ assert(peekfloat(p)=float(-1.25))
+end
+free(b)
+print "ok"

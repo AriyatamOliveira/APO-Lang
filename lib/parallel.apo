@@ -1,0 +1,37 @@
+use native
+# A synchronous, bounded batch on a reusable system concurrent queue.
+# Each task receives an exclusive [begin,end) range; buffers outlive the call.
+fn parallel_pool(workers: int): buffer
+  assert(workers >= 1i and workers <= 64i)
+  pool = alloc(32i)
+  store64(pool, 0i, 0x41504f504f4f4c31)
+  store64(pool, 8i, workers)
+  system = native_library("/usr/lib/libSystem.B.dylib")
+  native_put(pool, 16i, native_symbol(system, "dispatch_apply_f"))
+  unsafe
+    queue = ccallp(native_symbol(system, "dispatch_get_global_queue"), 0i, 0i)
+    assert(queue != native_null())
+    native_put(pool, 24i, queue)
+  end
+  return pool
+end
+fn parallel_for(pool: buffer, worker: pointer, data: buffer, count: int): void
+  assert(len(pool) == 32 and load64(pool, 0i) == 0x41504f504f4f4c31)
+  assert(count >= 0i)
+  # Force handle validation even on an empty batch.
+  assert(len(data) >= 0)
+  if count == 0i then
+    return
+  end
+  lanes = load64(pool, 8i)
+  if lanes > count then
+    lanes = count
+  end
+  unsafe
+    _parallel(worker, data, count, lanes, native_get(pool, 16i), native_get(pool, 24i))
+  end
+end
+fn parallel_close(pool: buffer): void
+  assert(len(pool) == 32 and load64(pool, 0i) == 0x41504f504f4f4c31)
+  free(pool)
+end

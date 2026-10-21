@@ -1,0 +1,17 @@
+use parallel
+
+task fn squares(data: buffer, begin: int, finish: int): void
+  let i = begin
+  while i < finish do
+    store64(data, i * 8i, i * i)
+    i += 1i
+  end
+end
+
+let data = alloc(8000i)
+let pool = parallel_pool(4i)
+parallel_for(pool, squares, data, 1000i)
+assert(load64(data, 999i * 8i) == 998001i)
+println "Four-lane batch finished; square(999) = ", load64(data, 999i * 8i)
+parallel_close(pool)
+free(data)

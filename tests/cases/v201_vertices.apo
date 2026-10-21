@@ -1,0 +1,31 @@
+use "../../lib/hypercube.apo"
+use "../reference/vertices_20.apo"
+let image = r3_canvas(440i, 360i)
+r3_camera(image, 4.5f, 0.75f)
+let a = alloc(4096i * 48i)
+let b = alloc(4096i * 48i)
+let matrix = alloc(1152i)
+let temp = alloc(96i)
+let checked = 0i
+for angle in -12.0f 0.0f 6.0f 21.25f
+  let n = 1i
+  while n <= 12i do
+    hc_vertices(image, a, matrix, temp, n, angle, 0.4f, 0.6f)
+    reference_vertices(image, b, matrix, temp, n, angle, 0.4f, 0.6f)
+    let at = 0i
+    while at < shl(1i, n) * 48i do
+      let expected = loadfloat(b, at)
+      let actual = loadfloat(a, at)
+      assert(abs(actual - expected) <= 0.00000002f * (1.0f + abs(expected)))
+      at += 8i
+      checked += 1i
+    end
+    n += 1i
+  end
+end
+free(temp)
+free(matrix)
+free(b)
+free(a)
+free(image)
+print: checked, " vertex fields matched reference tolerance", \nl

@@ -1,0 +1,10 @@
+use "../../lib/hypercube.apo"
+i = r3_canvas(32i, 32i)
+v = alloc(16i * 48i)
+m = alloc(1152i)
+t = alloc(96i)
+s = alloc(16i)
+e = hc_edges(4i)
+hc_vertices(i, v, m, t, 4i, 0.0f, 0.0f, 0.0f)
+store64(e, 0i, 16i)
+hc_draw_edges(i, v, 4i, e, s)

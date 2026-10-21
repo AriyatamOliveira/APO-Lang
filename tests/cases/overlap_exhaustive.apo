@@ -1,0 +1,36 @@
+b=alloc(16)
+expected=alloc(16)
+cases=0i
+n=0i
+while n<=16i do
+  src=0i
+  while src+n<=16i do
+    dst=0i
+    while dst+n<=16i do
+      i=0i
+      while i<16i do
+        b[i]=i
+        expected[i]=i
+        i=i+1i
+      end
+      i=0i
+      while i<n do
+        expected[dst+i]=src+i
+        i=i+1i
+      end
+      copy(b,dst,b,src,n)
+      i=0i
+      while i<16i do
+        assert(b[i]=expected[i])
+        i=i+1i
+      end
+      cases=cases+1i
+      dst=dst+1i
+    end
+    src=src+1i
+  end
+  n=n+1i
+end
+print cases,\nl
+free(expected)
+free(b)

@@ -1,0 +1,9 @@
+let value = 7i
+if true then
+  set value = 8i
+end
+set value += 2i
+let bytes = alloc(4i)
+set bytes[1i] = 72i
+println: value, " ", bytes[1i]
+free(bytes)

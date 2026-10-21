@@ -1,0 +1,2 @@
+x: float = 0
+print float_bits(-x)," ",(-x = x),\nl

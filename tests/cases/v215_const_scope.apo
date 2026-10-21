@@ -1,0 +1,4 @@
+const x = 1i
+if true then
+set x += 1i
+end

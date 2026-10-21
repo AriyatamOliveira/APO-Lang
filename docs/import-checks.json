@@ -1,0 +1,34 @@
+[
+  {
+    "command": [
+      "/mnt/data/work215/installation with spaces/apo",
+      "check",
+      "main.apo"
+    ],
+    "exit": 0,
+    "stdout": "Checked main.apo\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "apo",
+      "check",
+      "main.apo"
+    ],
+    "exit": 0,
+    "stdout": "Checked main.apo\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/mnt/data/work215/apo-host",
+      "check",
+      "main.apo",
+      "--lib-dir",
+      "/mnt/data/apo-2.1.5/lib"
+    ],
+    "exit": 0,
+    "stdout": "Checked main.apo\n",
+    "stderr": ""
+  }
+]

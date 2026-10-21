@@ -1,0 +1,2 @@
+b=alloc(4)
+store32(b,1,0)

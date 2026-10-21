@@ -1,0 +1,2 @@
+b=alloc(2)
+copy(b,1,"ab",0,2)

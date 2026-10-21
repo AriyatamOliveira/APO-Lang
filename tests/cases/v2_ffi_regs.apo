@@ -1,0 +1,4 @@
+unsafe
+  p = pointer(1i)
+  x = ccall(p, 1i, 2i, 3i, 4i, 5i, 6i, 7i, 8i, 9i)
+end

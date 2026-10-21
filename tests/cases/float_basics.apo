@@ -1,0 +1,3 @@
+a: float = 1
+b: float = 8
+print a/b," ",sqrt(float(2))," ",floor(float(-0.5))," ",ceil(float(-0.5))," ",trunc(float(-3.75)),\nl

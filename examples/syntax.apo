@@ -1,0 +1,24 @@
+# Explicit updates catch a misspelled variable instead of declaring another one.
+fn add(a: int, b: int,): int
+  return a + b
+end
+
+const title = "APO syntax"
+let score = add(
+  20i,
+  22i,
+)
+set score += 1i
+println: title, ": ", score
+
+if score < 40i then
+  println "low"
+elif score < 50i then
+  println "middle"
+else
+  println "high"
+end
+
+for word in "yo" "yup" "yah"
+  println: word
+end

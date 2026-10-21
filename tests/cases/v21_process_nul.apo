@@ -1,0 +1,2 @@
+use process
+process_new("bad\0path")

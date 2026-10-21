@@ -1,0 +1,14 @@
+# macOS hardware key codes, not layout-dependent characters or text input.
+# These constants are intended for top-level event loops; APO functions do not
+# capture globals, so pass a code into a function rather than using a global there.
+const KEY_SPACE = 49i
+const KEY_ESCAPE = 53i
+const KEY_R = 15i
+const KEY_W = 13i
+const KEY_A = 0i
+const KEY_S = 1i
+const KEY_D = 2i
+const KEY_LEFT = 123i
+const KEY_RIGHT = 124i
+const KEY_DOWN = 125i
+const KEY_UP = 126i

@@ -1,0 +1,16 @@
+use "../lib/window.apo"
+use "../lib/frame.apo"
+# The smallest window example. RGBA bytes are explicitly owned by this program.
+window = window_open(640i, 480i, "APO 2.0 - Native window")
+pixels = alloc(160i * 120i * 4i)
+fill32(pixels, 0xffb06020)
+start = clock()
+while window_poll(window) do
+  window_present(window, pixels, 160i, 120i, 0i)
+  if argc() > 1i and clock() - start >= 1 then
+    break
+  end
+  frame_wait(start, 30)
+end
+window_close(window)
+free(pixels)

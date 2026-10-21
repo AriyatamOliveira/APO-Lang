@@ -1,0 +1,4 @@
+use "../../lib/render3d.apo"
+b = r3_canvas(32i, 32i)
+store64(b, 16i, 999999i)
+_raster_line(b, 0.0f, 0.0f, 31.0f, 31.0f, 1.0f, 1.0f, 31i, 0xffffffff)

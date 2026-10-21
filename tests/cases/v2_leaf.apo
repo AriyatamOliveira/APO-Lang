@@ -1,0 +1,10 @@
+fn f(a: int, b: int): int
+  return a * b - a / b + a % b
+end
+assert(f(123456789i, 77i) = 9504569490i)
+assert(-3i - -4i = 1i)
+assert(1.0f / 4.0f = 0.25f)
+assert(1.0f - 0.75f = 0.25f)
+assert("x" == "x" and "x" != "y")
+assert(0.2 + 0.1 = 0.3)
+

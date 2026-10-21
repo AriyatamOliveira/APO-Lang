@@ -1,0 +1,6 @@
+b=alloc(32)
+b[0]=72
+b[1]=105
+write_bytes(b,0,2)
+print len(b), " ", b[2], \nl
+free(b)

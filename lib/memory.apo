@@ -1,0 +1,70 @@
+# Checked ownership helpers. Resizing creates a fresh generation-tagged allocation:
+# every old buffer alias becomes stale after success. Raw pointers are NOT tracked.
+fn resize(old: buffer, bytes: int): buffer
+  assert(bytes > 0i and bytes <= 1073741824i)
+  prior = int(len(old))
+  fresh = alloc(bytes)
+  amount = prior
+  if amount > bytes then
+    amount = bytes
+  end
+  copy(fresh, 0i, old, 0i, amount)
+  free(old)
+  return fresh
+end
+fn ints(count: int): buffer
+  assert(count > 0i and count <= 134217728i)
+  return alloc(count * 8i)
+end
+fn floats(count: int): buffer
+  return ints(count)
+end
+fn int_get(b: buffer, index: int): int
+  assert(index >= 0i and index < int(len(b)) / 8i)
+  return load64(b, index * 8i)
+end
+fn int_set(b: buffer, index: int, value: int): void
+  assert(index >= 0i and index < int(len(b)) / 8i)
+  store64(b, index * 8i, value)
+end
+fn float_get(b: buffer, index: int): float
+  assert(index >= 0i and index < int(len(b)) / 8i)
+  return loadfloat(b, index * 8i)
+end
+fn float_set(b: buffer, index: int, value: float): void
+  assert(index >= 0i and index < int(len(b)) / 8i)
+  storefloat(b, index * 8i, value)
+end
+# One allocation, byte-offset suballocation; zeroed initially, reused bytes are not zeroed.
+# Offsets returned by arena_take refer to the same arena buffer; no raw pointer required.
+fn arena_new(bytes: int): buffer
+  assert(bytes > 0i and bytes <= 1073733632i)
+  b = alloc(bytes + 4096i)
+  store64(b, 0i, 0x41504f4152454e41)
+  store64(b, 8i, 4096i)
+  store64(b, 16i, int(len(b)))
+  return b
+end
+fn arena_used(b: buffer): int
+  assert(load64(b, 0i) = 0x41504f4152454e41)
+  return load64(b, 8i) - 4096i
+end
+fn arena_mark(b: buffer): int
+  assert(load64(b, 0i) = 0x41504f4152454e41)
+  return load64(b, 8i)
+end
+fn arena_take(b: buffer, bytes: int, alignment: int): int
+  assert(load64(b, 0i) = 0x41504f4152454e41)
+  assert(bytes > 0i and bytes <= 1073741824i)
+  assert(alignment >= 1i and alignment <= 4096i and band(alignment, alignment - 1i) = 0i)
+  cursor = load64(b, 8i)
+  aligned = band(cursor + alignment - 1i, -alignment)
+  assert(aligned <= load64(b, 16i) and bytes <= load64(b, 16i) - aligned)
+  store64(b, 8i, aligned + bytes)
+  return aligned
+end
+fn arena_reset(b: buffer, mark: int): void
+  assert(load64(b, 0i) = 0x41504f4152454e41)
+  assert(mark >= 4096i and mark <= load64(b, 8i))
+  store64(b, 8i, mark)
+end

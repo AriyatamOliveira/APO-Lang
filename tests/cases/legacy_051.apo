@@ -1,0 +1,7 @@
+i=0
+while i<1100 do
+b=alloc(1)
+free(b)
+i=i+1
+end
+print i

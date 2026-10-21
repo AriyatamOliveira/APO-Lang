@@ -1,0 +1,29 @@
+use parallel
+
+task fn increment(data: buffer, begin: int, finish: int): void
+  i=begin
+  while i<finish do
+    atomic_add(data,0i,1i)
+    store64(data,8i+i*8i,i)
+    i+=1i
+  end
+end
+let count=509i
+let data=alloc(8i+count*8i)
+for lanes in 1i 2i 3i 4i 8i 64i
+  let pool=parallel_pool(lanes)
+  fill(data,0i)
+  parallel_for(pool,increment,data,0i)
+  assert(atomic_load(data,0i)==0i)
+  parallel_for(pool,increment,data,count)
+  assert(atomic_load(data,0i)==count)
+  let i=0i
+  while i<count do
+    assert(load64(data,8i+i*8i)==i)
+    i+=1i
+  end
+  parallel_close(pool)
+end
+free(data)
+println "Parallel ranges, contention, and joins passed"
+

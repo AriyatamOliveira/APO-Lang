@@ -1,0 +1,10 @@
+use "../../lib/native.apo"
+lib = native_library("/usr/lib/libSystem.B.dylib")
+strlen_fn = native_symbol(lib, "strlen")
+cmp_fn = native_symbol(lib, "memcmp")
+text = native_text("hello")
+unsafe
+  assert(ccall(strlen_fn, address(text)) = 5i)
+  assert(ccall(cmp_fn, address(text), address(text), 5i) = 0i)
+end
+free(text)

@@ -1,0 +1,12 @@
+{
+  "scope": "GCC, Clang, and sanitizer-enabled host source bootstraps generating the same target compiler; not an executed native self-build",
+  "compiler_bytes": 363440,
+  "sha256": "a568c2fd6179b61ef65c4d984f7c2ce1c89654430067e27b7e3802ba28930b8e",
+  "matching_outputs": [
+    "compiler-current",
+    "compiler-clang",
+    "compiler-sanitized"
+  ],
+  "compiler_source_sha256": "97f263bde1e496e8fe16796b0df74a6b80f9174f0a527eaa7ad22a94065df780",
+  "bootstrap_source_sha256": "03c13b8aed8e0b590a94203cbd888458ccbed90b1c68fc5145f0c6e8722631d0"
+}

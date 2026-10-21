@@ -1,0 +1,2 @@
+b = alloc(10i)
+fill32_range(b, 8i, 4i, 1i)

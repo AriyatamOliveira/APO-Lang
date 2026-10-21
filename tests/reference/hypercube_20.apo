@@ -1,0 +1,152 @@
+use "render3d_20.apo"
+# Exact combinatorial topology, floating-point coordinates. All N(N-1)/2 planes.
+# R = R * R_plane, followed by R * vertex: same order as the original NumPy code.
+fn hc_matrix(matrix: buffer, dimension: int, time: float): void
+  assert(dimension >= 1i and dimension <= 12i and len(matrix) >= 1152)
+  fill64(matrix, 0i)
+  i = 0i
+  while i < dimension do
+    storefloat(matrix, (i * dimension + i) * 8i, 1.0f)
+    i += 1i
+  end
+  plane = 0i
+  i = 0i
+  while i < dimension do
+    j = i + 1i
+    while j < dimension do
+      theta = time * (0.1f + 0.03f * float(plane % 7i))
+      c = r3_cos(theta)
+      s = r3_sin(theta)
+      row = 0i
+      while row < dimension do
+        p = (row * dimension + i) * 8i
+        q = (row * dimension + j) * 8i
+        a = loadfloat(matrix, p)
+        b = loadfloat(matrix, q)
+        storefloat(matrix, p, a * c + b * s)
+        storefloat(matrix, q, -a * s + b * c)
+        row += 1i
+      end
+      plane += 1i
+      j += 1i
+    end
+    i += 1i
+  end
+end
+fn hc_vertices(image: buffer, vertices: buffer, matrix: buffer, temp: buffer,
+    dimension: int, time: float, pitch: float, yaw: float): void
+  hc_matrix(matrix, dimension, time)
+  count = shl(1i, dimension)
+  assert(int(len(vertices)) >= count * 48i and len(temp) >= 96)
+  damp = sqrt(float(dimension) / 4.0f)
+  sx = r3_sin(pitch)
+  cx = r3_cos(pitch)
+  sy = r3_sin(yaw)
+  cy = r3_cos(yaw)
+  i = 0i
+  while i < count do
+    fill64(temp, 0i)
+    row = 0i
+    while row < dimension do
+      value = 0.0f
+      col = 0i
+      while col < dimension do
+        component = float(band(shr(i, col), 1i) * 2i - 1i)
+        value += loadfloat(matrix, (row * dimension + col) * 8i) * component
+        col += 1i
+      end
+      storefloat(temp, row * 8i, value)
+      row += 1i
+    end
+    multiplier = 1.0f
+    d = 3i
+    while d < dimension do
+      denominator = r3_max(0.05f, 3.5f - loadfloat(temp, d * 8i) * (0.35f / damp))
+      multiplier *= 3.5f / denominator
+      d += 1i
+    end
+    x = loadfloat(temp, 0i) * multiplier
+    y = loadfloat(temp, 8i) * multiplier
+    z = loadfloat(temp, 16i) * multiplier
+    xc = x * cy + z * sy
+    zc = -x * sy + z * cy
+    r3_vertex(image, vertices, i, xc, y * cx - zc * sx, y * sx + zc * cx)
+    i += 1i
+  end
+end
+fn hc_draw(image: buffer, vertices: buffer, dimension: int, scratch: buffer): void
+  assert(dimension >= 1i and dimension <= 12i)
+  count = shl(1i, dimension)
+  assert(int(len(vertices)) >= count * 48i)
+  minz = loadfloat(vertices, 16i)
+  maxz = minz
+  i = 1i
+  while i < count do
+    z = loadfloat(vertices, i * 48i + 16i)
+    minz = r3_min(minz, z)
+    maxz = r3_max(maxz, z)
+    i += 1i
+  end
+  span = maxz - minz
+  if span < 0.000001f then
+    span = 1.0f
+  end
+  # Each edge generated once: i < (i xor 2^d). No edge-sort allocations per frame.
+  i = 0i
+  while i < count do
+    d = 0i
+    while d < dimension do
+      other = bxor(i, shl(1i, d))
+      if i < other then
+        depth = (loadfloat(vertices, i * 48i + 16i) + loadfloat(vertices, other * 48i + 16i)) * 0.5f
+        ratio = r3_clamp(1.0f - (depth - minz) / span, 0.0f, 1.0f)
+        color = r3_rgb(trunc(20.0f + 200.0f * ratio), trunc(200.0f * ratio), trunc(240.0f + 15.0f * ratio))
+        r3_line(image, vertices, i, other, color, scratch)
+      end
+      d += 1i
+    end
+    i += 1i
+  end
+  # Vertex markers use the same depth test. Very high N gets one pixel per vertex.
+  width = load64(image, 0i)
+  height = load64(image, 8i)
+  zoff = load64(image, 16i)
+  i = 0i
+  while i < count do
+    inverse = loadfloat(vertices, i * 48i + 40i)
+    xf = loadfloat(vertices, i * 48i + 24i)
+    yf = loadfloat(vertices, i * 48i + 32i)
+    if inverse > 0.0f and xf >= 0.0f and yf >= 0.0f and xf < float(width) and yf < float(height) then
+      x = trunc(xf)
+      y = trunc(yf)
+      index = y * width + x
+      if inverse >= loadfloat(image, zoff + index * 8i) then
+        storefloat(image, zoff + index * 8i, inverse)
+        store32(image, 64i + index * 4i, r3_rgb(255i, 0i, 180i))
+      end
+    end
+    i += 1i
+  end
+end
+fn hc_dimension(text: string): int
+  n = 0i
+  if len(text) < 1 or len(text) > 2 then
+    return 4i
+  end
+  i = 0i
+  while i < int(len(text)) do
+    ch = byte_at(text, i)
+    if ch < 48i or ch > 57i then
+      return 4i
+    end
+    n = n * 10i + ch - 48i
+    i += 1i
+  end
+  if n < 1i then
+    return 4i
+  end
+  if n > 12i then
+    return 12i
+  end
+  return n
+end

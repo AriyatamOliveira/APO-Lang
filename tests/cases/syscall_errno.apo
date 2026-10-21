@@ -1,0 +1,3 @@
+unsafe
+print syscall(6i,-1i,0i,0i,0i,0i,0i),\nl
+end

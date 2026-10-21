@@ -1,0 +1,17 @@
+fn add(a: int, b: int,): int
+  return a + b
+end
+let answer = add(20i, 22i,)
+set answer += 0i
+if answer == 42i then
+  println: "APO 2.0.15 ready"
+elif answer == 0i then
+  exit 2i
+else
+  exit 3i
+end
+println: 0.1 + 0.2
+memory = alloc(16i)
+store64(memory, 0i, answer)
+println: load64(memory, 0i)
+free(memory)

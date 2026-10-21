@@ -1,0 +1,16 @@
+# These are actual instructions inserted into the executable, not interpreted.
+# X0..X5 receive the arguments. The expression returns X0 as a signed int.
+# Do not clobber X18..X30, SP, or callee-saved FP registers.
+fn wrapping_add(a: int, b: int): int
+  unsafe
+    return asm32(0x8B010000, a, b) # ADD X0, X0, X1
+  end
+end
+fn hardware_shift(value: int, count: int): int
+  unsafe
+    return asm32(0x9AC12000, value, count) # LSLV X0, X0, X1
+  end
+end
+print: wrapping_add(7i, 5i), \nl
+print: wrapping_add(9223372036854775807i, 1i), \nl
+print: hardware_shift(1i, 65i), \nl # ARM64 masks the count to six bits: result 2.

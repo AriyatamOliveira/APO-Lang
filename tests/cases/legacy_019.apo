@@ -1,0 +1,11 @@
+b=alloc(16)
+unsafe
+ p=address(b)
+ poke8(p,72)
+ poke8(offset(p,1),105)
+ poke64(offset(p,8),123456789012345i)
+ print peek8(p), " ", peek64(offset(p,8)), \nl
+ assert(pointer(address_int(p))=p)
+end
+write_bytes(b,0,2)
+free(b)

@@ -1,0 +1,2 @@
+b=alloc(8i)
+atomic_store(b,8i,1i)

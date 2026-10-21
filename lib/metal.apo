@@ -1,0 +1,303 @@
+use window
+use float32
+# Explicit Metal resources. All entry points are main-thread only.
+# Buffer ring slots are waited on before reuse, never immediately after submission.
+fn metal_check(g: buffer): void
+  assert(len(g) == 4096 and load64(g, 0i) == 0x41504f4d4554414c)
+end
+fn m_sel(g: buffer, index: int): pointer
+  assert(index >= 0i and index < 96i)
+  return native_get(g, 1024i + index * 8i)
+end
+fn m_msg(g: buffer, w: buffer, object: pointer, index: int): pointer
+  unsafe
+    return ccallp(native_get(w, 160i), object, m_sel(g, index))
+  end
+end
+fn m_send(g: buffer, w: buffer, object: pointer, index: int): void
+  unsafe
+    ccallv(native_get(w, 160i), object, m_sel(g, index))
+  end
+end
+fn m_int(g: buffer, w: buffer, object: pointer, index: int, value: int): void
+  unsafe
+    ccallv(native_get(w, 160i), object, m_sel(g, index), value)
+  end
+end
+fn m_ptr(g: buffer, w: buffer, object: pointer, index: int, value: pointer): void
+  unsafe
+    ccallv(native_get(w, 160i), object, m_sel(g, index), value)
+  end
+end
+fn m_error(g: buffer, w: buffer, message: string, error: pointer): void
+  println "Metal: ", message
+  if error != native_null() then
+    description = m_msg(g, w, error, 67i)
+    text = m_msg(g, w, description, 68i)
+    if text != native_null() then
+      unsafe
+        size = ccall(native_get(g, 144i), text)
+        if size > 0i and size < 1048576i then
+          println string_at(text, size)
+        end
+      end
+    end
+  end
+  exit 70i
+end
+fn m_new(g: buffer, w: buffer, name: string): pointer
+  result = gui_msg(w, gui_msg(w, gui_class(w, name), 0i), 1i)
+  assert(result != native_null())
+  return result
+end
+fn metal_buffer(g: buffer, w: buffer, bytes: int): pointer
+  metal_check(g)
+  assert(bytes > 0i and bytes <= 1073741824i)
+  unsafe
+    result = ccallp(native_get(w, 160i), native_get(g, 8i), m_sel(g, 11i), bytes, 0i)
+    if result == native_null() then
+      m_error(g, w, "cannot allocate shared buffer", native_null())
+    end
+    return result
+  end
+end
+fn m_texture(g: buffer, w: buffer, format: int): pointer
+  desc = m_new(g, w, "MTLTextureDescriptor")
+  m_int(g,w,desc,2i,format)
+  kind = 2i
+  if load64(g, 88i) > 1i then
+    kind = 4i
+  end
+  m_int(g,w,desc,31i,kind)
+  m_int(g,w,desc,32i,load64(g,72i))
+  m_int(g,w,desc,33i,load64(g,80i))
+  m_int(g,w,desc,22i,load64(g,88i))
+  m_int(g,w,desc,34i,2i) # private GPU texture
+  m_int(g,w,desc,35i,4i) # render target usage
+  unsafe
+    result=ccallp(native_get(w,160i),native_get(g,8i),m_sel(g,36i),desc)
+    gui_send(w,desc,3i)
+    if result==native_null() then
+      m_error(g,w,"cannot allocate render target",native_null())
+    end
+    return result
+  end
+end
+fn metal_open(w: buffer, width: int, height: int, samples: int): buffer
+  gui_check(w)
+  assert(load64(w,1120i)==0i)
+  assert(width>=160i and height>=120i and width<=4096i and height<=4096i)
+  assert(samples==1i or samples==2i or samples==4i)
+  g=alloc(4096i)
+  store64(g,0i,0x41504f4d4554414c)
+  store64(g,72i,width)
+  store64(g,80i,height)
+  metal= native_library("/System/Library/Frameworks/Metal.framework/Metal")
+  quartz= native_library("/System/Library/Frameworks/QuartzCore.framework/QuartzCore")
+  system= native_library("/usr/lib/libSystem.B.dylib")
+  native_put(g,144i,native_symbol(system,"strlen"))
+  native_put(g,152i,native_symbol(system,"memcpy"))
+  index=0i
+  for name in "layer" "setDevice:" "setPixelFormat:" "setFramebufferOnly:" "setDrawableSize:" "setMaximumDrawableCount:" "setDisplaySyncEnabled:" "setAllowsNextDrawableTimeout:" "setWantsLayer:" "setLayer:" "newCommandQueue" "newBufferWithLength:options:" "contents" "newLibraryWithSource:options:error:" "newFunctionWithName:" "newComputePipelineStateWithFunction:error:" "newRenderPipelineStateWithDescriptor:error:" "setVertexFunction:" "setFragmentFunction:" "colorAttachments" "objectAtIndexedSubscript:" "setDepthAttachmentPixelFormat:" "setSampleCount:" "setBlendingEnabled:" "setSourceRGBBlendFactor:" "setDestinationRGBBlendFactor:" "setSourceAlphaBlendFactor:" "setDestinationAlphaBlendFactor:" "newDepthStencilStateWithDescriptor:" "setDepthCompareFunction:" "setDepthWriteEnabled:" "setTextureType:" "setWidth:" "setHeight:" "setStorageMode:" "setUsage:" "newTextureWithDescriptor:" "commandBuffer" "waitUntilCompleted" "status" "error" "GPUStartTime" "GPUEndTime" "computeCommandEncoder" "setComputePipelineState:" "setBuffer:offset:atIndex:" "dispatchThreadgroups:threadsPerThreadgroup:" "endEncoding" "nextDrawable" "texture" "renderPassDescriptor" "setTexture:" "setResolveTexture:" "setLoadAction:" "setStoreAction:" "setClearColor:" "depthAttachment" "setClearDepth:" "renderCommandEncoderWithDescriptor:" "setRenderPipelineState:" "setDepthStencilState:" "setVertexBuffer:offset:atIndex:" "drawPrimitives:vertexStart:vertexCount:instanceCount:" "presentDrawable:" "commit" "setCullMode:" "setContentAspectRatio:" "localizedDescription" "UTF8String" "setFastMathEnabled:" "maxTotalThreadsPerThreadgroup" "setLabel:" "supportsTextureSampleCount:" "setRasterSampleCount:" "setFrame:" "setContentsScale:"
+    b=native_text(name)
+    unsafe
+      native_put(g,1024i+index*8i,ccallp(native_get(w,176i),address(b)))
+    end
+    free(b)
+    index+=1i
+  end
+  unsafe
+    device=ccallp(native_symbol(metal,"MTLCreateSystemDefaultDevice"))
+    if device==native_null() then
+      m_error(g,w,"no Metal device is available",native_null())
+    end
+    native_put(g,8i,device)
+    while samples>1i and band(ccall(native_get(w,160i),device,m_sel(g,72i),samples),255i)==0i do
+      samples/=2i
+    end
+    store64(g,88i,samples)
+    queue=m_msg(g,w,device,10i)
+    assert(queue!=native_null())
+    native_put(g,16i,queue)
+    layer=m_msg(g,w,gui_class(w,"CAMetalLayer"),0i)
+    assert(layer!=native_null())
+    gui_send(w,layer,41i)
+    native_put(g,24i,layer)
+    m_ptr(g,w,layer,1i,device)
+    m_int(g,w,layer,2i,80i) # BGRA8Unorm
+    m_int(g,w,layer,3i,1i)
+    m_int(g,w,layer,5i,3i)
+    m_int(g,w,layer,6i,1i)
+    m_int(g,w,layer,7i,1i)
+    ccallv(native_get(w,160i),layer,m_sel(g,4i),float(width),float(height))
+    oldview=native_get(w,24i)
+    view=ccallp(native_get(w,160i),gui_msg(w,gui_class(w,"NSView"),0i),gui_sel(w,10i),0.0f,0.0f,float(window_width(w)),float(window_height(w)))
+    assert(view!=native_null())
+    gui_send_i(w,view,16i,18i)
+    m_int(g,w,view,8i,1i)
+    m_ptr(g,w,view,9i,layer)
+    gui_send_p(w,native_get(w,8i),11i,view)
+    native_put(w,24i,view)
+    gui_send(w,oldview,3i)
+    store64(w,1120i,1i)
+    ccallv(native_get(w,160i),layer,m_sel(g,74i),0.0f,0.0f,float(window_width(w)),float(window_height(w)))
+    ccallv(native_get(w,160i),layer,m_sel(g,75i),1.0f)
+    store64(g,184i,window_width(w))
+    store64(g,192i,window_height(w))
+    ccallv(native_get(w,160i),native_get(w,8i),m_sel(g,66i),float(width),float(height))
+  end
+  depthdesc=m_new(g,w,"MTLDepthStencilDescriptor")
+  m_int(g,w,depthdesc,29i,3i)
+  m_int(g,w,depthdesc,30i,1i)
+  unsafe
+    native_put(g,64i,ccallp(native_get(w,160i),native_get(g,8i),m_sel(g,28i),depthdesc))
+  end
+  gui_send(w,depthdesc,3i)
+  assert(native_get(g,64i)!=native_null())
+  native_put(g,96i,m_texture(g,w,252i))
+  if samples>1i then
+    native_put(g,104i,m_texture(g,w,80i))
+  end
+  i=0i
+  while i<3i do
+    native_put(g,256i+i*32i,metal_buffer(g,w,640i))
+    native_put(g,264i+i*32i,metal_buffer(g,w,65536i))
+    i+=1i
+  end
+  println "Metal: ",width," x ",height," | MSAA ",samples,"x | 3 in-flight slots"
+  return g
+end
+fn metal_library(g: buffer,w: buffer,source: string): pointer
+  metal_check(g)
+  text=gui_string(w,source)
+  options=m_new(g,w,"MTLCompileOptions")
+  m_int(g,w,options,69i,0i)
+  error=alloc(8i)
+  unsafe
+    result=ccallp(native_get(w,160i),native_get(g,8i),m_sel(g,13i),text,options,address(error))
+    gui_send(w,text,3i)
+    gui_send(w,options,3i)
+    if result==native_null() then
+      m_error(g,w,"shader compilation failed",native_get(error,0i))
+    end
+    free(error)
+    return result
+  end
+end
+fn metal_function(g: buffer,w: buffer,library: pointer,name: string): pointer
+  text=gui_string(w,name)
+  unsafe
+    result=ccallp(native_get(w,160i),library,m_sel(g,14i),text)
+    gui_send(w,text,3i)
+    if result==native_null() then
+      m_error(g,w,"shader function is missing",native_null())
+    end
+    return result
+  end
+end
+fn metal_compute(g: buffer,w: buffer,library: pointer,name: string): pointer
+  function=metal_function(g,w,library,name)
+  error=alloc(8i)
+  unsafe
+    result=ccallp(native_get(w,160i),native_get(g,8i),m_sel(g,15i),function,address(error))
+    gui_send(w,function,3i)
+    if result==native_null() then
+      m_error(g,w,"compute pipeline creation failed",native_get(error,0i))
+    end
+    free(error)
+    assert(ccall(native_get(w,160i),result,m_sel(g,70i))>=64i)
+    return result
+  end
+end
+fn metal_pipeline(g: buffer,w: buffer,library: pointer,vertex: string,fragment: string): pointer
+  vf=metal_function(g,w,library,vertex)
+  ff=metal_function(g,w,library,fragment)
+  desc=m_new(g,w,"MTLRenderPipelineDescriptor")
+  m_ptr(g,w,desc,17i,vf)
+  m_ptr(g,w,desc,18i,ff)
+  m_int(g,w,desc,21i,252i)
+  m_int(g,w,desc,73i,load64(g,88i))
+  attachments=m_msg(g,w,desc,19i)
+  error=alloc(8i)
+  unsafe
+    color=ccallp(native_get(w,160i),attachments,m_sel(g,20i),0i)
+    m_int(g,w,color,2i,80i)
+    m_int(g,w,color,23i,1i)
+    m_int(g,w,color,24i,1i) # premultiplied: one
+    m_int(g,w,color,25i,5i) # one minus source alpha
+    m_int(g,w,color,26i,1i)
+    m_int(g,w,color,27i,5i)
+    result=ccallp(native_get(w,160i),native_get(g,8i),m_sel(g,16i),desc,address(error))
+    gui_send(w,vf,3i)
+    gui_send(w,ff,3i)
+    gui_send(w,desc,3i)
+    if result==native_null() then
+      m_error(g,w,"render pipeline creation failed",native_get(error,0i))
+    end
+    free(error)
+    return result
+  end
+end
+fn metal_wait_slot(g: buffer,w: buffer,slot: int): void
+  metal_check(g)
+  assert(slot>=0i and slot<3i)
+  command=native_get(g,272i+slot*32i)
+  if command!=native_null() then
+    m_send(g,w,command,38i)
+    unsafe
+      if ccall(native_get(w,160i),command,m_sel(g,39i))==5i then
+        m_error(g,w,"GPU command failed",m_msg(g,w,command,40i))
+      end
+      begin=ccallf(native_get(w,160i),command,m_sel(g,41i))
+      finish=ccallf(native_get(w,160i),command,m_sel(g,42i))
+      if begin>0.0f and finish>=begin then
+        storefloat(g,120i,(finish-begin)*1000.0f)
+        storefloat(g,176i,loadfloat(g,176i)+(finish-begin)*1000.0f)
+        store64(g,128i,load64(g,128i)+1i)
+      end
+    end
+    gui_send(w,command,3i)
+    native_put(g,272i+slot*32i,native_null())
+  end
+end
+fn metal_finish(g: buffer,w: buffer): void
+  i=0i
+  while i<3i do
+    metal_wait_slot(g,w,i)
+    i+=1i
+  end
+end
+fn metal_gpu_ms(g: buffer): float
+  metal_check(g)
+  return loadfloat(g,120i)
+end
+fn metal_gpu_average_ms(g: buffer): float
+  metal_check(g)
+  n=load64(g,128i)
+  if n==0i then
+    return 0.0f
+  end
+  return loadfloat(g,176i)/float(n)
+end
+fn metal_reset_stats(g: buffer,w: buffer): void
+  metal_finish(g,w)
+  store64(g,128i,0i)
+  storefloat(g,176i,0.0f)
+end
+fn metal_close(g: buffer,w: buffer): void
+  metal_check(g)
+  metal_finish(g,w)
+  i=0i
+  while i<3i do
+    gui_send(w,native_get(g,256i+i*32i),3i)
+    gui_send(w,native_get(g,264i+i*32i),3i)
+    i+=1i
+  end
+  for off in 32i 40i 48i 56i 64i 96i 104i 16i 24i 8i
+    object=native_get(g,off)
+    if object!=native_null() then
+      gui_send(w,object,3i)
+    end
+  end
+  free(g)
+end

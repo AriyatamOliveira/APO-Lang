@@ -1,0 +1,5 @@
+fn f(): void
+end
+task fn bad(data: buffer,begin: int,finish: int): void
+  f()
+end

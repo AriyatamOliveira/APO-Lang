@@ -1,0 +1,145 @@
+# APO 2.0.15: exact hypercube topology; approximate floating-point projection.
+# Run after building: ./apo run hypercube_live.apo -- 8 balanced
+# Profiles: balanced (440x360/60Hz), eco (352x288/30Hz), high (550x450/60Hz).
+use "../lib/window.apo"
+use "../lib/hypercube.apo"
+use "../lib/frame.apo"
+
+let dimension = 4i
+if argc() > 1i then
+  dimension = hc_dimension(arg(1i))
+end
+let profile = "balanced"
+if argc() > 2i then
+  profile = arg(2i)
+end
+let render_width = 440i
+let render_height = 360i
+let target_rate = 60
+if profile == "eco" then
+  render_width = 352i
+  render_height = 288i
+  target_rate = 30
+else
+  if profile == "high" then
+    render_width = 550i
+    render_height = 450i
+  else
+    if profile != "balanced" then
+      print: "Profile must be balanced, eco, or high.", \nl
+      exit 64i
+    end
+  end
+end
+let smoke = argc() > 3i
+let window = window_open(1100i, 900i, "APO 2.0.15 Hypercube | Drag Rotate | Wheel Zoom | Space Pause | R Reset | Arrows Dimension")
+let image = r3_canvas(render_width, render_height)
+let vertices = alloc(4096i * 48i)
+let matrix = alloc(144i * 8i)
+let temp = alloc(96i)
+let scratch = alloc(16i)
+let edges = hc_edges(dimension)
+let start = clock()
+let last = start
+let time = 0.0f
+let pitch = 0.4f
+let yaw = 0.6f
+let zoom = 0.75f
+let paused = false
+let dirty = true
+let fps_start = start
+let frames = 0i
+
+print: "APO 2.0.15 Hypercube | ", dimension, "D | ", shl(1i, dimension), " vertices | ", dimension * shl(1i, dimension - 1i), " edges", \nl
+print: "Profile: ", profile, " | ", render_width, " x ", render_height, " | target ", target_rate, " FPS (not a guarantee)", \nl
+print: "Drag = orbit | Scroll = zoom | Space = pause | R = reset | Left/Right = dimension | Esc = quit", \nl
+
+while window_poll(window) do
+  let now = clock()
+  let dt = float(now - last)
+  last = now
+  if smoke and now - start >= 8 then
+    break
+  end
+  if key_pressed(window, 49i) then
+    paused = not paused
+    dirty = true
+    frames = 0i
+    fps_start = now
+  end
+  if key_pressed(window, 15i) then
+    pitch = 0.4f
+    yaw = 0.6f
+    zoom = 0.75f
+    time = 0.0f
+    dirty = true
+  end
+  let changed = false
+  if key_pressed(window, 123i) and dimension > 1i then
+    dimension -= 1i
+    changed = true
+  end
+  if key_pressed(window, 124i) and dimension < 12i then
+    dimension += 1i
+    changed = true
+  end
+  if changed then
+    free(edges)
+    edges = hc_edges(dimension)
+    dirty = true
+    print: dimension, "D: ", shl(1i, dimension), " vertices | ", dimension * shl(1i, dimension - 1i), " edges", \nl
+  end
+  if not paused then
+    # Do not clamp dt: that used to slow rotation when a frame took >0.25 seconds.
+    time += dt * 0.35f
+    dirty = true
+  end
+  let dx = mouse_dx(window)
+  let dy = mouse_dy(window)
+  let scroll = mouse_scroll(window)
+  if mouse_down(window) and (dx != 0.0f or dy != 0.0f) then
+    yaw += dx * 0.005f
+    pitch += dy * 0.005f
+    dirty = true
+  end
+  if scroll != 0.0f then
+    zoom *= r3_clamp(1.0f + scroll * 0.05f, 0.5f, 1.5f)
+    zoom = r3_clamp(zoom, 0.04f, 12.0f)
+    dirty = true
+  end
+  if not window_drawable(window) then
+    # Keep input responsive, but do no rasterization while hidden/minimized.
+    frames = 0i
+    fps_start = now
+    sleep(0.1)
+    continue
+  end
+  if not dirty then
+    frames = 0i
+    fps_start = now
+    sleep(0.05)
+    continue
+  end
+  r3_camera(image, 4.5f, zoom)
+  r3_clear(image, r3_rgb(13i, 17i, 23i))
+  hc_vertices(image, vertices, matrix, temp, dimension, time, pitch, yaw)
+  hc_draw_edges(image, vertices, dimension, edges, scratch)
+  window_present(window, image, render_width, render_height, 64i)
+  dirty = false
+  frames += 1i
+  let sample = clock()
+  if sample - fps_start >= 2 then
+    print: "FPS ~ ", frame_fps(frames, sample - fps_start), " | ", dimension, "D | ", profile, \nl
+    frames = 0i
+    fps_start = sample
+  end
+  frame_pace(now, target_rate)
+end
+
+window_close(window)
+free(edges)
+free(scratch)
+free(temp)
+free(matrix)
+free(vertices)
+free(image)

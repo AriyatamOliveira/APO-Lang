@@ -1,0 +1,308 @@
+# CPU RGBA8 + inverse-depth renderer. Public memory is checked; bounded pixel loops
+# explicitly use unsafe addresses after validating the canvas layout and rectangles.
+# Camera looks toward -Z relative to positive camera depth. +Y projects upward.
+fn r3_pi(): float
+  unsafe
+    return float_from_bits(0x400921fb54442d18)
+  end
+end
+fn r3_sin(x: float): float
+  tau = 2.0f * r3_pi()
+  a = x - floor((x + r3_pi()) / tau) * tau
+  term = a
+  result = a
+  k = 1i
+  while k <= 10i do
+    term = -term * a * a / float((2i * k) * (2i * k + 1i))
+    result += term
+    k += 1i
+  end
+  return result
+end
+fn r3_cos(x: float): float
+  return r3_sin(x + r3_pi() / 2.0f)
+end
+fn r3_min(a: float, b: float): float
+  if a < b then
+    return a
+  end
+  return b
+end
+fn r3_max(a: float, b: float): float
+  if a > b then
+    return a
+  end
+  return b
+end
+fn r3_clamp(a: float, low: float, high: float): float
+  return r3_max(low, r3_min(high, a))
+end
+fn r3_rgb(r: int, g: int, b: int): int
+  assert(r >= 0i and r <= 255i and g >= 0i and g <= 255i and b >= 0i and b <= 255i)
+  return bor(0xff000000, bor(r, bor(shl(g, 8i), shl(b, 16i))))
+end
+fn r3_canvas(width: int, height: int): buffer
+  assert(width >= 16i and height >= 16i and width <= 2048i and height <= 2048i)
+  zoff = band(64i + width * height * 4i + 7i, -8i)
+  image = alloc(zoff + width * height * 8i)
+  store64(image, 0i, width)
+  store64(image, 8i, height)
+  store64(image, 16i, zoff)
+  store64(image, 24i, 0x41504f3344323030)
+  storefloat(image, 32i, 6.0f) # camera distance
+  storefloat(image, 40i, 0.9f) # focal length / framebuffer width
+  return image
+end
+fn r3_check(image: buffer): void
+  assert(load64(image, 24i) = 0x41504f3344323030)
+  width = load64(image, 0i)
+  height = load64(image, 8i)
+  assert(width >= 16i and height >= 16i and width <= 2048i and height <= 2048i)
+  assert(load64(image, 16i) >= 64i + width * height * 4i)
+  assert(load64(image, 16i) <= int(len(image)) - width * height * 8i)
+end
+fn r3_camera(image: buffer, distance: float, zoom: float): void
+  r3_check(image)
+  assert(distance >= 0.2f and distance <= 10000.0f and zoom > 0.0f and zoom <= 100.0f)
+  storefloat(image, 32i, distance)
+  storefloat(image, 40i, zoom)
+end
+fn r3_clear(image: buffer, rgba: int): void
+  r3_check(image)
+  pixels = load64(image, 0i) * load64(image, 8i)
+  fill32_range(image, 64i, pixels * 4i, rgba)
+  fill64_range(image, load64(image, 16i), pixels * 8i, 0i)
+end
+fn r3_vertex(image: buffer, vertices: buffer, i: int, x: float, y: float, z: float): void
+  assert(i >= 0i and i < int(len(vertices)) / 48i)
+  p = i * 48i
+  zc = z + loadfloat(image, 32i)
+  storefloat(vertices, p, x)
+  storefloat(vertices, p + 8i, y)
+  storefloat(vertices, p + 16i, zc)
+  if zc <= 0.1f then
+    storefloat(vertices, p + 24i, 0.0f)
+    storefloat(vertices, p + 32i, 0.0f)
+    storefloat(vertices, p + 40i, 0.0f)
+    return
+  end
+  inverse = 1.0f / zc
+  focal = float(load64(image, 0i)) * loadfloat(image, 40i)
+  storefloat(vertices, p + 24i, float(load64(image, 0i)) / 2.0f + x * focal * inverse)
+  storefloat(vertices, p + 32i, float(load64(image, 8i)) / 2.0f - y * focal * inverse)
+  storefloat(vertices, p + 40i, inverse)
+end
+fn r3_edge(ax: float, ay: float, bx: float, by: float, px: float, py: float): float
+  return (px - ax) * (by - ay) - (py - ay) * (bx - ax)
+end
+fn r3_triangle(image: buffer, vertices: buffer, ia: int, ib: int, ic: int, rgba: int): void
+  r3_check(image)
+  assert(ia >= 0i and ib >= 0i and ic >= 0i)
+  count = int(len(vertices)) / 48i
+  assert(ia < count and ib < count and ic < count)
+  a = ia * 48i
+  b = ib * 48i
+  c = ic * 48i
+  za = loadfloat(vertices, a + 40i)
+  zb = loadfloat(vertices, b + 40i)
+  zc = loadfloat(vertices, c + 40i)
+  # Conservative triangle rejection at the near plane; wire lines are clipped below.
+  if za <= 0.0f or zb <= 0.0f or zc <= 0.0f then
+    return
+  end
+  ax = loadfloat(vertices, a + 24i)
+  ay = loadfloat(vertices, a + 32i)
+  bx = loadfloat(vertices, b + 24i)
+  by = loadfloat(vertices, b + 32i)
+  cx = loadfloat(vertices, c + 24i)
+  cy = loadfloat(vertices, c + 32i)
+  area = r3_edge(ax, ay, bx, by, cx, cy)
+  if abs(area) < 0.000001f then
+    return
+  end
+  ux = loadfloat(vertices, b) - loadfloat(vertices, a)
+  uy = loadfloat(vertices, b + 8i) - loadfloat(vertices, a + 8i)
+  uz = loadfloat(vertices, b + 16i) - loadfloat(vertices, a + 16i)
+  vx = loadfloat(vertices, c) - loadfloat(vertices, a)
+  vy = loadfloat(vertices, c + 8i) - loadfloat(vertices, a + 8i)
+  vz = loadfloat(vertices, c + 16i) - loadfloat(vertices, a + 16i)
+  nx = uy * vz - uz * vy
+  ny = uz * vx - ux * vz
+  nz = ux * vy - uy * vx
+  norm = sqrt(nx * nx + ny * ny + nz * nz)
+  if norm < 0.000001f then
+    return
+  end
+  light = abs(nx * 0.4f + ny * 0.8f - nz * 0.6f) / (norm * sqrt(1.16f))
+  shade = r3_clamp(0.24f + light * 0.76f, 0.0f, 1.0f)
+  color = r3_rgb(trunc(float(band(rgba, 255i)) * shade),
+    trunc(float(band(shr(rgba, 8i), 255i)) * shade),
+    trunc(float(band(shr(rgba, 16i), 255i)) * shade))
+  width = load64(image, 0i)
+  height = load64(image, 8i)
+  # Reject wholly offscreen bounds before float-to-int conversion. Otherwise a
+  # finite but distant object could overflow an int even though it draws no pixels.
+  left = r3_min(ax, r3_min(bx, cx))
+  right = r3_max(ax, r3_max(bx, cx))
+  top = r3_min(ay, r3_min(by, cy))
+  bottom = r3_max(ay, r3_max(by, cy))
+  if right < 0.0f or bottom < 0.0f or left >= float(width) or top >= float(height) then
+    return
+  end
+  x0 = trunc(floor(r3_clamp(left, 0.0f, float(width - 1i))))
+  x1 = trunc(ceil(r3_clamp(right, 0.0f, float(width - 1i))))
+  y0 = trunc(floor(r3_clamp(top, 0.0f, float(height - 1i))))
+  y1 = trunc(ceil(r3_clamp(bottom, 0.0f, float(height - 1i))))
+  dx0 = (cy - by) / area
+  dx1 = (ay - cy) / area
+  dz0 = za - zc
+  dz1 = zb - zc
+  zoff = load64(image, 16i)
+  unsafe
+    base = address(image)
+    y = y0
+    while y <= y1 do
+      w0 = r3_edge(bx, by, cx, cy, float(x0) + 0.5f, float(y) + 0.5f) / area
+      w1 = r3_edge(cx, cy, ax, ay, float(x0) + 0.5f, float(y) + 0.5f) / area
+      pixel = offset(base, 64i + (y * width + x0) * 4i)
+      depth = offset(base, zoff + (y * width + x0) * 8i)
+      x = x0
+      while x <= x1 do
+        if w0 >= 0.0f and w1 >= 0.0f and w0 + w1 <= 1.0f then
+          inv = zc + w0 * dz0 + w1 * dz1
+          if inv > peekfloat(depth) then
+            pokefloat(depth, inv)
+            poke32(pixel, color)
+          end
+        end
+        w0 += dx0
+        w1 += dx1
+        pixel = offset(pixel, 4i)
+        depth = offset(depth, 8i)
+        x += 1i
+      end
+      y += 1i
+    end
+  end
+end
+fn r3_face(image: buffer, v: buffer, a: int, b: int, c: int, d: int, color: int): void
+  r3_triangle(image, v, a, b, c, color)
+  r3_triangle(image, v, a, c, d, color)
+end
+fn r3_cube(image: buffer, v: buffer, rx: float, ry: float): void
+  sx = r3_sin(rx)
+  cx = r3_cos(rx)
+  sy = r3_sin(ry)
+  cy = r3_cos(ry)
+  i = 0i
+  while i < 8i do
+    x = float(band(i, 1i) * 2i - 1i)
+    y = float(band(shr(i, 1i), 1i) * 2i - 1i)
+    z = float(band(shr(i, 2i), 1i) * 2i - 1i)
+    xx = x * cy + z * sy
+    zz = -x * sy + z * cy
+    r3_vertex(image, v, i, xx, y * cx - zz * sx, y * sx + zz * cx)
+    i += 1i
+  end
+  r3_face(image, v, 0i, 1i, 3i, 2i, r3_rgb(80i, 174i, 245i))
+  r3_face(image, v, 4i, 6i, 7i, 5i, r3_rgb(249i, 165i, 62i))
+  r3_face(image, v, 0i, 2i, 6i, 4i, r3_rgb(66i, 211i, 180i))
+  r3_face(image, v, 1i, 5i, 7i, 3i, r3_rgb(248i, 98i, 113i))
+  r3_face(image, v, 2i, 3i, 7i, 6i, r3_rgb(255i, 215i, 116i))
+  r3_face(image, v, 0i, 4i, 5i, 1i, r3_rgb(168i, 116i, 244i))
+end
+# Liang-Barsky screen clipping expressed as a mutable [low,high] interval.
+fn r3_clip(range: buffer, p: float, q: float): bool
+  if abs(p) < 0.000000000001f then
+    return q >= 0.0f
+  end
+  t = q / p
+  if p < 0.0f then
+    if t > loadfloat(range, 8i) then
+      return false
+    end
+    if t > loadfloat(range, 0i) then
+      storefloat(range, 0i, t)
+    end
+  else
+    if t < loadfloat(range, 0i) then
+      return false
+    end
+    if t < loadfloat(range, 8i) then
+      storefloat(range, 8i, t)
+    end
+  end
+  return true
+end
+fn r3_line(image: buffer, vertices: buffer, u: int, v: int, color: int, scratch: buffer): void
+  r3_check(image)
+  assert(u >= 0i and v >= 0i and u < int(len(vertices)) / 48i and v < int(len(vertices)) / 48i)
+  a = u * 48i
+  b = v * 48i
+  x0 = loadfloat(vertices, a)
+  y0 = loadfloat(vertices, a + 8i)
+  z0 = loadfloat(vertices, a + 16i)
+  x1 = loadfloat(vertices, b)
+  y1 = loadfloat(vertices, b + 8i)
+  z1 = loadfloat(vertices, b + 16i)
+  if z0 < 0.1f and z1 < 0.1f then
+    return
+  end
+  if z0 < 0.1f then
+    t = (0.1f - z0) / (z1 - z0)
+    x0 += (x1 - x0) * t
+    y0 += (y1 - y0) * t
+    z0 = 0.1f
+  end
+  if z1 < 0.1f then
+    t = (0.1f - z1) / (z0 - z1)
+    x1 += (x0 - x1) * t
+    y1 += (y0 - y1) * t
+    z1 = 0.1f
+  end
+  width = load64(image, 0i)
+  height = load64(image, 8i)
+  focal = float(width) * loadfloat(image, 40i)
+  za = 1.0f / z0
+  zb = 1.0f / z1
+  ax = float(width) / 2.0f + x0 * focal * za
+  ay = float(height) / 2.0f - y0 * focal * za
+  bx = float(width) / 2.0f + x1 * focal * zb
+  by = float(height) / 2.0f - y1 * focal * zb
+  dx = bx - ax
+  dy = by - ay
+  storefloat(scratch, 0i, 0.0f)
+  storefloat(scratch, 8i, 1.0f)
+  if not r3_clip(scratch, -dx, ax) or not r3_clip(scratch, dx, float(width - 1i) - ax) or not r3_clip(scratch, -dy, ay) or not r3_clip(scratch, dy, float(height - 1i) - ay) then
+    return
+  end
+  low = loadfloat(scratch, 0i)
+  high = loadfloat(scratch, 8i)
+  bx = ax + high * dx
+  by = ay + high * dy
+  ax += low * dx
+  ay += low * dy
+  z_end = za + (zb - za) * high
+  za += (zb - za) * low
+  steps = trunc(ceil(r3_max(abs(bx - ax), abs(by - ay))))
+  if steps < 1i then
+    steps = 1i
+  end
+  assert(steps <= width + height + 2i)
+  i = 0i
+  zoff = load64(image, 16i)
+  while i <= steps do
+    t = float(i) / float(steps)
+    x = trunc(floor(ax + (bx - ax) * t + 0.5f))
+    y = trunc(floor(ay + (by - ay) * t + 0.5f))
+    if x >= 0i and y >= 0i and x < width and y < height then
+      inv = za + (z_end - za) * t
+      index = y * width + x
+      if inv >= loadfloat(image, zoff + index * 8i) then
+        storefloat(image, zoff + index * 8i, inv)
+        store32(image, 64i + index * 4i, color)
+      end
+    end
+    i += 1i
+  end
+end

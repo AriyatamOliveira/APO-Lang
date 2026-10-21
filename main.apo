@@ -1,0 +1,14 @@
+# Start here. Build: ./apo build main.apo -o out/main
+println: "APO 2.1.5"
+println: "Exact: ", 0.1 + 0.2
+println: "Approximate: ", 1.0f / 3.0f
+
+let score = 7i
+set score += 1i
+if score == 8i then
+  println: "Ready"
+elif score == 0i then
+  println: "Empty"
+else
+  println: "Changed"
+end

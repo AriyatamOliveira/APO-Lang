@@ -1,0 +1,4 @@
+unsafe
+  p = pointer(1i)
+  x = ccall(p, "bad")
+end

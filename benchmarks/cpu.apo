@@ -1,0 +1,65 @@
+use parallel
+use filesystem
+use frame
+
+# Same task, bytes, and arithmetic for every lane count. No allocation in workers.
+task fn mix_words(data: buffer, begin: int, finish: int): void
+  i=begin
+  while i<finish do
+    value=bxor(i,0x13579bdf)
+    j=0i
+    while j<96i do
+      value=bxor(value,shl(value,13i))
+      value=bxor(value,shr(value,7i))
+      value=bxor(value,shl(value,17i))
+      j+=1i
+    end
+    store64(data,i*8i,value)
+    i+=1i
+  end
+end
+fn equal_words(a: buffer,b: buffer): bool
+  if len(a)!=len(b) then
+    return false
+  end
+  i=0i
+  while i<int(len(a)) do
+    if load64(a,i)!=load64(b,i) then
+      return false
+    end
+    i+=8i
+  end
+  return true
+end
+let count=131072i
+let data=alloc(count*8i)
+let expected=alloc(count*8i)
+let first=0.0f
+println "workers,best_seconds,speedup_vs_one,identical"
+for lanes in 1i 2i 4i 8i
+  let pool=parallel_pool(lanes)
+  parallel_for(pool,mix_words,data,count)
+  let best=999999.0f
+  for trial in 0i 1i 2i
+    let started=clock()
+    parallel_for(pool,mix_words,data,count)
+    let elapsed=float(clock()-started)
+    if elapsed<best then
+      best=elapsed
+    end
+  end
+  if lanes==1i then
+    first=best
+    copy(expected,0i,data,0i,len(data))
+  end
+  assert(equal_words(expected,data))
+  let speedup=0.0f
+  if best>0.0f then
+    speedup=first/best
+  end
+  println lanes,",",best,",",speedup,",true"
+  parallel_close(pool)
+end
+free(data)
+free(expected)
+println "Wall time includes dispatch and joining. Lanes are not guaranteed physical CPU cores."

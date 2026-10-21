@@ -1,0 +1,1 @@
+print band(0xff,0x0f), " ", bor(1i,2i), " ", bxor(7i,3i), " ", bnot(0i), \nl

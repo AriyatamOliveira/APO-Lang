@@ -1,0 +1,157 @@
+use hypercube_gpu
+use frame
+
+fn hypercube_app(benchmark: bool): void
+  dimension=8i
+  if argc()>1i then
+    dimension=hc_dimension(arg(1i))
+  end
+  width=1920i
+  height=1080i
+  samples=4i
+  rate=60
+  profile="max"
+  if argc()>2i then
+    profile=arg(2i)
+  end
+  if profile=="quality" or profile=="balanced" then
+    width=1280i
+    height=720i
+  elif profile=="eco" then
+    width=960i
+    height=540i
+    samples=1i
+    rate=30
+  elif profile!="max" and profile!="high" then
+    println "Unknown profile. Choose max (1080p), quality (720p), or eco (540p)."
+    exit 64i
+  end
+  limit=0i
+  if benchmark then
+    limit=360i
+  end
+  w=window_open(1280i,720i,"APO Hypercube | Metal | Blue edges, pink vertices")
+  g=metal_open(w,width,height,samples)
+  hypercube_gpu_init(g,w)
+  matrix=alloc(1152i)
+  params=alloc(640i)
+  pitch=0.4f
+  yaw=0.6f
+  zoom=0.40f
+  time=0.0f
+  paused=false
+  last=clock()
+  fps_start=last
+  frames=0i
+  drawn=0i
+  total=0i
+  bench_start=last
+  warmed=false
+  last_width=window_width(w)
+  last_height=window_height(w)
+  visible=false
+  println "APO 2.1.5 | ",dimension,"D | ",shl(1i,dimension)," vertices | ",dimension*shl(1i,dimension-1i)," edges"
+  println "Drag: orbit | Wheel: zoom | Space: pause | R: reset | Arrows: dimension | Esc: exit"
+  while window_poll(w) do
+    now=clock()
+    dt=float(now-last)
+    last=now
+    dirty=false
+    if window_width(w)!=last_width or window_height(w)!=last_height then
+      last_width=window_width(w)
+      last_height=window_height(w)
+      dirty=true
+    end
+    if key_pressed(w,49i) then
+      paused=not paused
+      dirty=true
+    end
+    if key_pressed(w,15i) then
+      pitch=0.4f
+      yaw=0.6f
+      zoom=0.40f
+      time=0.0f
+      dirty=true
+    end
+    if key_pressed(w,123i) and dimension>1i then
+      dimension-=1i
+      dirty=true
+    end
+    if key_pressed(w,124i) and dimension<12i then
+      dimension+=1i
+      dirty=true
+    end
+    if mouse_down(w) then
+      dx=mouse_dx(w)
+      dy=mouse_dy(w)
+      yaw+=dx*0.005f
+      pitch+=dy*0.005f
+      if dx!=0.0f or dy!=0.0f then
+        dirty=true
+      end
+    end
+    wheel=mouse_scroll(w)
+    if wheel!=0.0f then
+      zoom*=r3_clamp(1.0f+wheel*0.05f,0.5f,1.5f)
+      zoom=r3_clamp(zoom,0.02f,12.0f)
+      dirty=true
+    end
+    if not paused then
+      time+=dt*0.35f
+    end
+    if not window_drawable(w) then
+      visible=false
+      sleep(0.05)
+      fps_start=clock()
+      frames=0i
+      continue
+    end
+    if not visible then
+      visible=true
+      dirty=true
+    end
+    if paused and not dirty and drawn>0i then
+      sleep(0.01)
+      continue
+    end
+    hypercube_uniforms(g,matrix,params,dimension,time,pitch,yaw,zoom)
+    if hypercube_gpu_draw(g,w,params) then
+      frames+=1i
+      drawn+=1i
+      total+=1i
+    else
+      sleep(0.01)
+    end
+    if benchmark and total==30i and not warmed then
+      metal_reset_stats(g,w)
+      bench_start=clock()
+      warmed=true
+    end
+    sample=clock()
+    if sample-fps_start>=2 then
+      println "FPS ~ ",frame_fps(frames,sample-fps_start)," | GPU last frame ms ",metal_gpu_ms(g)," | ",dimension,"D"
+      frames=0i
+      fps_start=sample
+    end
+    if benchmark and total>=limit+30i then
+      break
+    end
+    frame_pace(now,rate)
+  end
+  if benchmark then
+    metal_finish(g,w)
+    elapsed=clock()-bench_start
+    measured=total-30i
+    if warmed and measured>0i then
+      println "gpu-benchmark,dimension,width,height,frames,elapsed_seconds,fps,gpu_mean_ms"
+      println "gpu-benchmark,",dimension,",",width,",",height,",",measured,",",elapsed,",",frame_fps(measured,elapsed),",",metal_gpu_average_ms(g)
+      println "Includes vsync/presentation and the profile rate cap. Not uncapped GPU throughput."
+    else
+      println "Benchmark canceled before warm-up completed."
+    end
+  end
+  metal_close(g,w)
+  window_close(w)
+  free(params)
+  free(matrix)
+end

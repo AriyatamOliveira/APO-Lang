@@ -1,0 +1,132 @@
+[
+  {
+    "file": "benchmarks/cpu.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "benchmarks/gpu.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "build.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "compiler.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/arena.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/arguments.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/assembly.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/benchmark.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/cube.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/cube_window.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/donut.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/hypercube_cpu.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/hypercube_window.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/memory.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/memory_control.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/optimization.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/parallel.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/render.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/render_cube.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/render_hypercube.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/syntax.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "examples/window.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "hypercube.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "hypercube_live.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "main.apo",
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "file": "test.apo",
+    "exit": 0,
+    "stderr": ""
+  }
+]

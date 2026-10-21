@@ -1,0 +1,7 @@
+fn modify(b: buffer): void
+ b[0]=90
+end
+b=alloc(1)
+modify(b)
+write_bytes(b,0,1)
+free(b)

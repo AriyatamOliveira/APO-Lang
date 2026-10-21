@@ -1,0 +1,13 @@
+use "../lib/png.apo"
+image = r3_canvas(320i, 240i)
+vertices = alloc(8i * 48i)
+r3_clear(image, r3_rgb(13i, 17i, 23i))
+r3_cube(image, vertices, 0.45f, 0.65f)
+path = "out/cube-2.png"
+if argc() > 1i then
+  path = arg(1i)
+end
+r3_write_png(image, path)
+free(vertices)
+free(image)
+print: "Rendered ", path, \nl

@@ -1,0 +1,3 @@
+use "../../lib/memory.apo"
+a = arena_new(100i)
+arena_take(a, 4i, 3i)

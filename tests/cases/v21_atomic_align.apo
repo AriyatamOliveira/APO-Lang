@@ -1,0 +1,2 @@
+b=alloc(16i)
+atomic_load(b,1i)

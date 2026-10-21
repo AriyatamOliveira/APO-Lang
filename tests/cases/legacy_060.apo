@@ -1,0 +1,4 @@
+unsafe
+p=pointer(0x1234)
+print p
+end

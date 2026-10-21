@@ -1,0 +1,2 @@
+b = alloc(8i)
+_raster_line(b, 0.0f, 0.0f, 31.0f, 31.0f, 1.0f, 1.0f, 31i, 0xffffffff)

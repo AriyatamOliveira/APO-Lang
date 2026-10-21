@@ -1,0 +1,7 @@
+let i = 0i
+let total = 0i
+while i < 50000i do
+  set total += i
+  set i += 1i
+end
+println: total

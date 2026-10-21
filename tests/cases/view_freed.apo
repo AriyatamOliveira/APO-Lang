@@ -1,0 +1,5 @@
+b=alloc(1)
+free(b)
+unsafe
+print view(b,0,1)
+end
